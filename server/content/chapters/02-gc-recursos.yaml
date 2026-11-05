@@ -2,6 +2,7 @@ id: ch02
 number: 2
 title: "Garbage Collector y gestión de recursos"
 level: "Senior"
+track: csharp
 summary: "Generaciones, LOH/POH, modos de GC, IDisposable, finalizadores y SafeHandle."
 objectives:
   - "Explicar el modelo generacional y por qué las asignaciones de vida media son caras."
@@ -186,3 +187,95 @@ questions:
       - "Los objetos del LOH"
     answer: 1
     explanation: "El GC marca todo lo alcanzable desde las raíces: estáticos, locales/registros activos de los hilos, handles (incluidos los pinned) y la cola de finalización."
+
+drills:
+  - id: d1
+    lang: csharp
+    title: "Implementar IDisposable correctamente"
+    timeLimit: 240
+    prompt: |
+      Escribe una clase `sealed` **CsvWriter** que envuelva un `StreamWriter` recibido en el constructor,
+      exponga `WriteRow(params string[] cols)` y que implemente `IDisposable` de forma **idempotente**,
+      lanzando `ObjectDisposedException` si se usa después de liberarse.
+    solution: |
+      public sealed class CsvWriter : IDisposable
+      {
+          private readonly StreamWriter _writer;
+          private bool _disposed;
+
+          public CsvWriter(StreamWriter writer) => _writer = writer;
+
+          public void WriteRow(params string[] cols)
+          {
+              ObjectDisposedException.ThrowIf(_disposed, this);
+              _writer.WriteLine(string.Join(';', cols));
+          }
+
+          public void Dispose()
+          {
+              if (_disposed) return;
+              _writer.Dispose();
+              _disposed = true;
+          }
+      }
+    checks:
+      - pattern: 'sealed\s+class\s+CsvWriter\s*:\s*IDisposable'
+        hint: "`sealed class CsvWriter : IDisposable`"
+      - pattern: 'public\s+void\s+Dispose\s*\(\s*\)'
+        hint: "Método público `Dispose()`"
+      - pattern: 'if\s*\(\s*_?disposed\s*\)\s*return'
+        hint: "Dispose idempotente: `if (_disposed) return;`"
+      - pattern: 'ObjectDisposedException'
+        hint: "Lanza ObjectDisposedException al usarlo tras liberar"
+      - pattern: '_?writer\s*\.\s*Dispose\s*\(\s*\)'
+        hint: "Libera el StreamWriter interno"
+    explanation: "Al ser sealed y no tener recursos no administrados propios no hace falta finalizador ni Dispose(bool)."
+
+snippets:
+  - id: n1
+    title: "Patrón Dispose completo (clase heredable)"
+    lang: csharp
+    code: |
+      public class Recurso : IDisposable
+      {
+          private bool _disposed;
+
+          protected virtual void Dispose(bool disposing)
+          {
+              if (_disposed) return;
+              if (disposing) { /* liberar objetos administrados IDisposable */ }
+              /* liberar recursos no administrados */
+              _disposed = true;
+          }
+
+          public void Dispose()
+          {
+              Dispose(disposing: true);
+              GC.SuppressFinalize(this);
+          }
+      }
+  - id: n2
+    title: "Diagnóstico de GC en caliente"
+    lang: bash
+    code: |
+      dotnet tool install -g dotnet-counters dotnet-gcdump dotnet-trace
+      dotnet-counters ps
+      dotnet-counters monitor -p <PID> --counters System.Runtime
+      dotnet-gcdump collect -p <PID> -o heap.gcdump   # ábrelo en Visual Studio o PerfView
+
+shortcuts:
+  - tool: "Visual Studio"
+    keys: "F5 / Ctrl+F5"
+    action: "Depurar / ejecutar sin depurar"
+  - tool: "Visual Studio"
+    keys: "F9"
+    action: "Poner o quitar breakpoint"
+  - tool: "Visual Studio"
+    keys: "F10 / F11 / Shift+F11"
+    action: "Paso por encima / paso a paso por instrucciones / salir del método"
+  - tool: "Visual Studio"
+    keys: "Ctrl+Shift+F5"
+    action: "Reiniciar la depuración"
+  - tool: "Visual Studio"
+    keys: "Ctrl+Shift+B"
+    action: "Compilar la solución"

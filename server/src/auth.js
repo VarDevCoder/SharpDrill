@@ -1,7 +1,7 @@
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 
-const SESSION_DAYS = 30;
 export const COOKIE = 'sd_session';
+export const WEB_SESSION_DAYS = 30;
 
 export function hashPassword(password) {
   const salt = randomBytes(16);
@@ -11,42 +11,44 @@ export function hashPassword(password) {
 
 export function verifyPassword(password, stored) {
   const [algo, saltHex, hashHex] = String(stored).split('$');
-  if (algo !== 'scrypt') return false;
+  if (algo !== 'scrypt' || !saltHex || !hashHex) return false;
   const expected = Buffer.from(hashHex, 'hex');
   const actual = scryptSync(password, Buffer.from(saltHex, 'hex'), expected.length);
   return timingSafeEqual(actual, expected);
 }
 
-export function createSession(db, userId) {
-  const token = randomBytes(32).toString('hex');
-  const expires = new Date(Date.now() + SESSION_DAYS * 86_400_000).toISOString();
-  db.prepare('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)').run(token, userId, expires);
-  return { token, expires };
+/** Los tokens son opacos (no JWT). En BD solo se guarda su SHA-256. */
+export const hashToken = (token) => createHash('sha256').update(token).digest('hex');
+export const newToken = (prefix = 'sd') => `${prefix}_${randomBytes(32).toString('base64url')}`;
+
+export async function issueToken(repo, userId, { kind = 'web', label = null, days = WEB_SESSION_DAYS } = {}) {
+  const token = newToken(kind === 'api' ? 'sdapi' : 'sd');
+  const expiresAt = new Date(Date.now() + days * 86_400_000);
+  const id = await repo.createSession({ tokenHash: hashToken(token), userId, kind, label, expiresAt });
+  return { id, token, expiresAt: expiresAt.toISOString() };
 }
 
 function parseCookies(header = '') {
   const out = {};
   for (const part of header.split(';')) {
     const i = part.indexOf('=');
-    if (i > 0) out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+    if (i > 0) {
+      try { out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim()); } catch { /* cookie malformada */ }
+    }
   }
   return out;
 }
 
+/** Acepta `Authorization: Bearer <token>` (curl/Postman) o la cookie HttpOnly (navegador). */
 export function tokenFrom(req) {
   const h = req.headers.authorization;
-  if (h?.startsWith('Bearer ')) return h.slice(7);
-  return parseCookies(req.headers.cookie)[COOKIE];
+  if (h && /^Bearer\s+/i.test(h)) return { token: h.replace(/^Bearer\s+/i, '').trim(), via: 'bearer' };
+  const c = parseCookies(req.headers.cookie)[COOKIE];
+  return c ? { token: c, via: 'cookie' } : { token: null, via: null };
 }
 
 export function setSessionCookie(res, token, expires, secure) {
-  const parts = [
-    `${COOKIE}=${token}`,
-    'Path=/',
-    'HttpOnly',
-    'SameSite=Lax',
-    `Expires=${new Date(expires).toUTCString()}`,
-  ];
+  const parts = [`${COOKIE}=${token}`, 'Path=/', 'HttpOnly', 'SameSite=Lax', `Expires=${new Date(expires).toUTCString()}`];
   if (secure) parts.push('Secure');
   res.setHeader('Set-Cookie', parts.join('; '));
 }
@@ -55,21 +57,26 @@ export function clearSessionCookie(res) {
   res.setHeader('Set-Cookie', `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
 }
 
-/** Middleware: carga req.user si hay sesión válida. */
-export function loadUser(db) {
-  const stmt = db.prepare(`
-    SELECT u.id, u.email, u.name, u.daily_goal AS dailyGoal
-    FROM sessions s JOIN users u ON u.id = s.user_id
-    WHERE s.token = ? AND s.expires_at > ?`);
-  return (req, _res, next) => {
-    const token = tokenFrom(req);
-    req.user = token ? stmt.get(token, new Date().toISOString()) ?? null : null;
-    req.token = token;
-    next();
+/** Middleware: carga req.user si el token es válido. */
+export function loadUser(repo) {
+  return async (req, _res, next) => {
+    try {
+      const { token, via } = tokenFrom(req);
+      req.token = token;
+      req.authVia = via;
+      const u = token ? await repo.userByTokenHash(hashToken(token)) : null;
+      req.user = u ? { id: u.id, email: u.email, name: u.name, dailyGoal: u.dailyGoal } : null;
+      req.sessionId = u?.sessionId ?? null;
+      next();
+    } catch (e) { next(e); }
   };
 }
 
 export function requireUser(req, res, next) {
-  if (!req.user) return res.status(401).json({ error: 'No autenticado' });
+  if (!req.user) {
+    // RFC 6750: indicar el esquema esperado y si el token era inválido
+    res.setHeader('WWW-Authenticate', 'Bearer realm="sharpdrill"' + (req.token ? ', error="invalid_token"' : ''));
+    return res.status(401).json({ error: 'No autenticado' });
+  }
   next();
 }

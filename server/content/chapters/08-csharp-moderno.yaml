@@ -2,6 +2,7 @@ id: ch08
 number: 8
 title: "C# moderno (10 → 14)"
 level: "Senior"
+track: csharp
 summary: "Records, pattern matching, nullable reference types, required/init, primary constructors, collection expressions y novedades de C# 14."
 objectives:
   - "Usar records y pattern matching para modelar dominios de forma expresiva."
@@ -191,3 +192,60 @@ questions:
     options: ["Default interface methods", "Extension members (bloques extension)", "Source generators", "Partial properties"]
     answer: 1
     explanation: "Los extension members de C# 14 amplían los métodos de extensión con propiedades y miembros estáticos de extensión."
+
+drills:
+  - id: d1
+    lang: csharp
+    title: "Tarifa con switch expression y patrones"
+    timeLimit: 180
+    prompt: |
+      Escribe `decimal Tarifa(Envio e)` con una **switch expression**: si `e.Peso > 20` → 25m;
+      si `e.Pais` es "ES" y `e.Urgente` → 12m; si `e.Pais` es "ES" → 5m; en cualquier otro caso → 15m.
+      Usa **property patterns**.
+    starter: |
+      record Envio(decimal Peso, string Pais, bool Urgente);
+    solution: |
+      decimal Tarifa(Envio e) => e switch
+      {
+          { Peso: > 20 } => 25m,
+          { Pais: "ES", Urgente: true } => 12m,
+          { Pais: "ES" } => 5m,
+          _ => 15m
+      };
+    checks:
+      - pattern: '\bswitch\s*\{'
+        hint: "Usa una switch expression `x switch { ... }`"
+      - pattern: '\{\s*Peso\s*:\s*>\s*20\s*\}'
+        hint: "Patrón relacional `{ Peso: > 20 }`"
+      - pattern: 'Pais\s*:\s*"ES"\s*,\s*Urgente\s*:\s*true|Urgente\s*:\s*true\s*,\s*Pais\s*:\s*"ES"'
+        hint: "Patrón combinado `{ Pais: \"ES\", Urgente: true }`"
+      - pattern: '\b_\s*=>'
+        hint: "Caso por defecto `_ =>`"
+    explanation: "El orden importa: los casos más específicos van primero. El compilador avisa de casos inalcanzables."
+
+snippets:
+  - id: n1
+    title: "Patrones útiles"
+    lang: csharp
+    code: |
+      if (obj is Pedido { Estado: Estado.Pagado, Total: > 0 } p) Enviar(p);
+      if (texto is null or "") return;
+      var tipo = valores switch { [] => "vacío", [var x] => $"uno: {x}", [_, _, ..] => "varios" };
+      string Rango(int n) => n switch { < 0 => "neg", 0 => "cero", <= 9 => "dígito", _ => "grande" };
+  - id: n2
+    title: "Opciones con required + init"
+    lang: csharp
+    code: |
+      public sealed class SmtpOptions
+      {
+          public required string Host { get; init; }
+          public int Port { get; init; } = 587;
+      }
+
+shortcuts:
+  - tool: "Rider (IntelliJ)"
+    keys: "Ctrl+W / Ctrl+Shift+W"
+    action: "Ampliar / reducir la selección por estructura"
+  - tool: "Rider (IntelliJ)"
+    keys: "Ctrl+Shift+R"
+    action: "Menú Refactor This"

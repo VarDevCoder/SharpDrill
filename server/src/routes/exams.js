@@ -6,15 +6,17 @@ import { shuffle } from './review.js';
 
 const GRACE_SECONDS = 30;
 
-export default function examRoutes({ db, content, progress }) {
+export default function examRoutes({ repo, content, progress }) {
   const r = Router();
   r.use(requireUser);
 
   /** Crea un examen cronometrado con preguntas aleatorias de los capítulos elegidos. */
-  r.post('/', (req, res) => {
+  r.post('/', async (req, res) => {
     const userId = req.user.id;
     let chapters = Array.isArray(req.body?.chapters) ? req.body.chapters.filter((c) => content.chapterById.has(c)) : [];
-    if (chapters.length === 0) chapters = content.chapters.map((c) => c.id);
+    if (req.body?.track) chapters = (chapters.length ? chapters : content.chapters.map((c) => c.id))
+      .filter((id) => content.chapterById.get(id).track === req.body.track);
+    if (chapters.length === 0 && !req.body?.track) chapters = content.chapters.map((c) => c.id);
     const count = Math.min(60, Math.max(5, Number(req.body?.count) || 20));
     const minutes = Math.min(120, Math.max(1, Number(req.body?.minutes) || 20));
 
@@ -22,52 +24,46 @@ export default function examRoutes({ db, content, progress }) {
     const picked = shuffle(pool).slice(0, count).map(([id]) => id);
     if (picked.length === 0) throw httpError(400, 'No hay preguntas para esos capítulos');
 
-    const startedAt = new Date().toISOString();
-    const { lastInsertRowid } = db.prepare(
-      'INSERT INTO exams (user_id, item_ids, chapters, time_limit, started_at, total) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(userId, JSON.stringify(picked), JSON.stringify(chapters), minutes * 60, startedAt, picked.length);
-
-    res.status(201).json({
-      exam: {
-        id: Number(lastInsertRowid), startedAt, timeLimit: minutes * 60, total: picked.length,
-        items: picked.map((id) => progress.resolveItem(userId, id).public),
-      },
-    });
+    const startedAt = new Date();
+    const id = await repo.createExam({ userId, itemIds: picked, chapters, timeLimit: minutes * 60, startedAt, total: picked.length });
+    const items = [];
+    for (const itemId of picked) items.push((await progress.resolveItem(userId, itemId)).public);
+    res.status(201).json({ exam: { id, startedAt: startedAt.toISOString(), timeLimit: minutes * 60, total: picked.length, items } });
   });
 
   /** Entrega y corrige el examen. Cada respuesta también alimenta el SM-2. */
-  r.post('/:id/submit', (req, res) => {
+  r.post('/:id/submit', async (req, res) => {
     const userId = req.user.id;
-    const exam = db.prepare('SELECT * FROM exams WHERE id = ? AND user_id = ?').get(Number(req.params.id), userId);
+    const exam = await repo.getExam(userId, Number(req.params.id));
     if (!exam) throw httpError(404, 'Examen no encontrado');
-    if (exam.finished_at) throw httpError(409, 'Este examen ya fue entregado');
+    if (exam.finishedAt) throw httpError(409, 'Este examen ya fue entregado');
 
     const answers = req.body?.answers ?? {};
-    const elapsed = (Date.now() - Date.parse(exam.started_at)) / 1000;
-    const late = elapsed > exam.time_limit + GRACE_SECONDS;
+    const elapsed = (Date.now() - Date.parse(exam.startedAt)) / 1000;
+    const late = elapsed > exam.timeLimit + GRACE_SECONDS;
 
-    const results = JSON.parse(exam.item_ids).map((id) => {
-      const it = progress.resolveItem(userId, id);
+    const graded = [];
+    for (const id of exam.itemIds) {
+      const it = await progress.resolveItem(userId, id);
       const answered = Object.hasOwn(answers, id) && answers[id] !== null && answers[id] !== '';
       const { correct, expected } = answered && !late ? gradeAnswer(it.data, answers[id]) : { correct: false, expected: it.data.answer };
-      progress.record(userId, id, it.chapterId, correct ? 2 : 0, 'exam', correct);
-      return { ...it.public, answer: answered ? answers[id] : null, correct, expected, explanation: it.data.explanation };
-    });
-    const score = results.filter((x) => x.correct).length;
-    db.prepare('UPDATE exams SET finished_at = ?, score = ? WHERE id = ?').run(new Date().toISOString(), score, exam.id);
+      graded.push({ it, id, answered, correct, expected });
+    }
+    const score = graded.filter((x) => x.correct).length;
+    // finishExam es condicional (finished_at IS NULL): dos entregas simultáneas no puntúan dos veces
+    if (!(await repo.finishExam(userId, exam.id, score))) throw httpError(409, 'Este examen ya fue entregado');
 
+    const results = [];
+    for (const g of graded) {
+      await progress.record(userId, g.id, g.it.chapterId, g.correct ? 2 : 0, 'exam', g.correct);
+      results.push({ ...g.it.public, answer: g.answered ? answers[g.id] : null, correct: g.correct, expected: g.expected, explanation: g.it.data.explanation });
+    }
     res.json({ result: { id: exam.id, score, total: exam.total, late, elapsed: Math.round(elapsed), results } });
   });
 
-  r.get('/', (req, res) => {
-    const rows = db.prepare(`SELECT id, chapters, time_limit, started_at, finished_at, score, total
-      FROM exams WHERE user_id = ? AND finished_at IS NOT NULL ORDER BY id DESC LIMIT 20`).all(req.user.id);
-    res.json({
-      exams: rows.map((x) => ({
-        id: x.id, chapters: JSON.parse(x.chapters), timeLimit: x.time_limit,
-        startedAt: x.started_at, finishedAt: x.finished_at, score: x.score, total: x.total,
-      })),
-    });
+  r.get('/', async (req, res) => {
+    const exams = await repo.listExams(req.user.id, 20);
+    res.json({ exams: exams.map(({ itemIds, ...x }) => x) });
   });
 
   return r;

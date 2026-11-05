@@ -1,0 +1,40 @@
+# Stack completo: Oracle Database Free (PL/SQL) + API Node + frontend React compilado.
+#   docker compose up --build
+#   App:    http://localhost:3000
+#   Oracle: localhost:1521/FREEPDB1  (usuario sharpdrill)
+services:
+  oracle:
+    image: gvenzl/oracle-free:23-slim
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_SYS_PASSWORD:-Oracle_Sys_123}
+      APP_USER: sharpdrill
+      APP_USER_PASSWORD: ${ORACLE_PASSWORD:-SharpDrill_123}
+    ports:
+      - "1521:1521"
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+      - ./db/oracle:/opt/sharpdrill:ro
+      - ./db/oracle/initdb:/container-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  api:
+    build: .
+    depends_on:
+      oracle:
+        condition: service_healthy
+    environment:
+      DB_CLIENT: oracle
+      ORACLE_USER: sharpdrill
+      ORACLE_PASSWORD: ${ORACLE_PASSWORD:-SharpDrill_123}
+      ORACLE_CONNECT_STRING: oracle:1521/FREEPDB1
+      DRILL_SECRET: ${DRILL_SECRET:-cambia-esto-en-produccion}
+    ports:
+      - "3000:3000"
+
+volumes:
+  oracle-data:

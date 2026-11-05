@@ -2,6 +2,7 @@ id: ch01
 number: 1
 title: "CLR y sistema de tipos"
 level: "Senior"
+track: csharp
 summary: "Tipos por valor y por referencia, stack vs heap, boxing, structs bien diseñados y semántica de copia."
 objectives:
   - "Explicar dónde vive realmente cada valor (y por qué 'los structs van al stack' es una simplificación)."
@@ -200,3 +201,80 @@ questions:
     prompt: "Las variables locales capturadas por una lambda pueden terminar almacenadas en el heap."
     answer: true
     explanation: "El compilador las mueve a un objeto 'display class' (closure) en el heap para que sobrevivan a la llamada del método."
+
+drills:
+  - id: d1
+    lang: csharp
+    title: "Value object Money inmutable"
+    timeLimit: 240
+    prompt: |
+      Escribe un `readonly record struct` llamado **Money** con `Amount` (decimal) y `Currency` (string).
+      Añade un método `Add(Money other)` que lance `InvalidOperationException` si las monedas no coinciden
+      y devuelva un nuevo `Money` con la suma.
+    starter: |
+      // Escribe aquí tu tipo Money
+    solution: |
+      public readonly record struct Money(decimal Amount, string Currency)
+      {
+          public Money Add(Money other)
+          {
+              if (other.Currency != Currency)
+                  throw new InvalidOperationException("Monedas distintas");
+              return this with { Amount = Amount + other.Amount };
+          }
+      }
+    checks:
+      - pattern: 'readonly\s+record\s+struct\s+Money'
+        hint: "Declara `readonly record struct Money`"
+      - pattern: 'decimal\s+Amount'
+        hint: "Amount debe ser decimal (nunca double para dinero)"
+      - pattern: 'Money\s+Add\s*\(\s*Money\s+\w+\s*\)'
+        hint: "Método `Money Add(Money other)`"
+      - pattern: 'throw\s+new\s+InvalidOperationException'
+        hint: "Lanza InvalidOperationException si la moneda no coincide"
+      - pattern: '\bwith\s*\{|new\s+Money\s*\('
+        hint: "Devuelve una nueva instancia (with o new Money)"
+    explanation: "Un value object inmutable evita estados inválidos; `with` crea una copia sin mutar el original. Usa decimal para dinero por su precisión en base 10."
+
+snippets:
+  - id: n1
+    title: "Struct con igualdad eficiente"
+    lang: csharp
+    code: |
+      public readonly struct Point : IEquatable<Point>
+      {
+          public int X { get; }
+          public int Y { get; }
+          public Point(int x, int y) => (X, Y) = (x, y);
+          public bool Equals(Point o) => X == o.X && Y == o.Y;
+          public override bool Equals(object? obj) => obj is Point p && Equals(p);
+          public override int GetHashCode() => HashCode.Combine(X, Y);
+          public static bool operator ==(Point a, Point b) => a.Equals(b);
+          public static bool operator !=(Point a, Point b) => !a.Equals(b);
+      }
+    note: "O simplemente `public readonly record struct Point(int X, int Y);`, que genera todo esto."
+  - id: n2
+    title: "Ver el IL / código bajado (lowering)"
+    lang: bash
+    code: |
+      # sharplab.io: pega código C# y mira IL, JIT asm o el código 'lowered'
+      dotnet tool install -g ilspycmd
+      ilspycmd MiApp.dll -t MiNamespace.MiClase   # decompila un tipo
+    note: "Muy útil para entender boxing, closures y máquinas de estado."
+
+shortcuts:
+  - tool: "Visual Studio"
+    keys: "F12"
+    action: "Ir a la definición"
+  - tool: "Visual Studio"
+    keys: "Ctrl+F12"
+    action: "Ir a la implementación"
+  - tool: "Visual Studio"
+    keys: "Shift+F12"
+    action: "Buscar todas las referencias"
+  - tool: "Visual Studio"
+    keys: "Ctrl+T"
+    action: "Ir a todo (tipos, archivos, miembros)"
+  - tool: "Visual Studio"
+    keys: "Ctrl+-"
+    action: "Navegar hacia atrás (volver a la posición anterior)"

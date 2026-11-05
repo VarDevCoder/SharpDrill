@@ -1,63 +1,83 @@
 import { Router } from 'express';
-import { hashPassword, verifyPassword, createSession, setSessionCookie, clearSessionCookie, requireUser } from '../auth.js';
+import {
+  hashPassword, verifyPassword, issueToken, hashToken, setSessionCookie, clearSessionCookie, requireUser,
+} from '../auth.js';
 import { httpError } from '../errors.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function authRoutes({ db, secureCookies }) {
+export default function authRoutes({ repo, secureCookies }) {
   const r = Router();
 
-  r.post('/register', (req, res) => {
+  const publicUser = (u) => ({ id: u.id, email: u.email, name: u.name, dailyGoal: u.dailyGoal });
+
+  r.post('/register', async (req, res) => {
     const email = String(req.body?.email ?? '').trim();
     const name = String(req.body?.name ?? '').trim();
     const password = String(req.body?.password ?? '');
     if (!EMAIL_RE.test(email)) throw httpError(400, 'Email inválido');
     if (name.length < 2 || name.length > 60) throw httpError(400, 'El nombre debe tener entre 2 y 60 caracteres');
     if (password.length < 8) throw httpError(400, 'La contraseña debe tener al menos 8 caracteres');
-    if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) throw httpError(409, 'Ese email ya está registrado');
+    if (await repo.findUserByEmail(email)) throw httpError(409, 'Ese email ya está registrado');
 
-    const { lastInsertRowid } = db
-      .prepare('INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)')
-      .run(email, name, hashPassword(password));
-    const id = Number(lastInsertRowid);
-    const { token, expires } = createSession(db, id);
-    setSessionCookie(res, token, expires, secureCookies);
-    res.status(201).json({ user: { id, email, name, dailyGoal: 20 }, token });
+    const id = await repo.createUser({ email, name, passwordHash: hashPassword(password) });
+    const { token, expiresAt } = await issueToken(repo, id);
+    setSessionCookie(res, token, expiresAt, secureCookies);
+    res.status(201).json({ user: { id, email, name, dailyGoal: 20 }, token, tokenType: 'Bearer', expiresAt });
   });
 
-  r.post('/login', (req, res) => {
+  /** Login: devuelve el token (para usarlo como Bearer en curl/Postman) y además fija la cookie HttpOnly. */
+  r.post('/login', async (req, res) => {
     const email = String(req.body?.email ?? '').trim();
     const password = String(req.body?.password ?? '');
-    const row = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-    if (!row || !verifyPassword(password, row.password_hash)) throw httpError(401, 'Email o contraseña incorrectos');
-    const { token, expires } = createSession(db, row.id);
-    setSessionCookie(res, token, expires, secureCookies);
-    res.json({ user: { id: row.id, email: row.email, name: row.name, dailyGoal: row.daily_goal }, token });
+    const u = await repo.findUserByEmail(email);
+    if (!u || !verifyPassword(password, u.passwordHash)) throw httpError(401, 'Email o contraseña incorrectos');
+    const { token, expiresAt } = await issueToken(repo, u.id);
+    setSessionCookie(res, token, expiresAt, secureCookies);
+    res.json({ user: publicUser(u), token, tokenType: 'Bearer', expiresAt });
   });
 
-  r.post('/logout', (req, res) => {
-    if (req.token) db.prepare('DELETE FROM sessions WHERE token = ?').run(req.token);
+  r.post('/logout', async (req, res) => {
+    if (req.token) await repo.deleteSessionByHash(hashToken(req.token));
     clearSessionCookie(res);
     res.json({ ok: true });
   });
 
-  // Devuelve user: null si no hay sesión (evita un 401 ruidoso al arrancar la SPA)
-  r.get('/me', (req, res) => res.json({ user: req.user ?? null }));
+  // user: null si no hay sesión (evita un 401 ruidoso al arrancar la SPA)
+  r.get('/me', (req, res) => res.json({ user: req.user ?? null, authVia: req.authVia }));
 
-  r.patch('/me', requireUser, (req, res) => {
-    const goal = req.body?.dailyGoal;
-    const name = req.body?.name;
-    if (goal !== undefined) {
-      if (!Number.isInteger(goal) || goal < 5 || goal > 500) throw httpError(400, 'Meta diaria entre 5 y 500');
-      db.prepare('UPDATE users SET daily_goal = ? WHERE id = ?').run(goal, req.user.id);
+  r.patch('/me', requireUser, async (req, res) => {
+    const patch = {};
+    if (req.body?.dailyGoal !== undefined) {
+      const g = req.body.dailyGoal;
+      if (!Number.isInteger(g) || g < 5 || g > 500) throw httpError(400, 'Meta diaria entre 5 y 500');
+      patch.dailyGoal = g;
     }
-    if (name !== undefined) {
-      const n = String(name).trim();
+    if (req.body?.name !== undefined) {
+      const n = String(req.body.name).trim();
       if (n.length < 2 || n.length > 60) throw httpError(400, 'Nombre inválido');
-      db.prepare('UPDATE users SET name = ? WHERE id = ?').run(n, req.user.id);
+      patch.name = n;
     }
-    const u = db.prepare('SELECT id, email, name, daily_goal AS dailyGoal FROM users WHERE id = ?').get(req.user.id);
-    res.json({ user: u });
+    res.json({ user: publicUser(await repo.updateUser(req.user.id, patch)) });
+  });
+
+  // ---- Tokens de API personales (para practicar Bearer con curl / Postman) ----
+  r.get('/tokens', requireUser, async (req, res) => {
+    res.json({ tokens: await repo.listSessions(req.user.id, 'api') });
+  });
+
+  r.post('/tokens', requireUser, async (req, res) => {
+    const label = String(req.body?.label ?? '').trim().slice(0, 60) || 'Token de API';
+    const days = Math.min(365, Math.max(1, Number(req.body?.days) || 30));
+    const t = await issueToken(repo, req.user.id, { kind: 'api', label, days });
+    // El token solo se muestra una vez: en BD guardamos su hash
+    res.status(201).json({ id: t.id, label, token: t.token, tokenType: 'Bearer', expiresAt: t.expiresAt });
+  });
+
+  r.delete('/tokens/:id', requireUser, async (req, res) => {
+    const ok = await repo.deleteSession(req.user.id, Number(req.params.id));
+    if (!ok) throw httpError(404, 'Token no encontrado');
+    res.json({ ok: true });
   });
 
   return r;

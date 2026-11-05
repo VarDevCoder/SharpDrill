@@ -2,6 +2,7 @@ id: ch03
 number: 3
 title: "Genéricos avanzados"
 level: "Senior"
+track: csharp
 summary: "Restricciones, varianza, reificación en el JIT, campos estáticos por tipo cerrado y generic math."
 objectives:
   - "Entender cómo el JIT compila genéricos para tipos por valor y por referencia."
@@ -194,3 +195,66 @@ questions:
       - "Lanza excepción"
     answer: 2
     explanation: "El JIT especializa el método para int y emite una llamada constrained directa a Int32.CompareTo(int), sin boxing."
+
+drills:
+  - id: d1
+    lang: csharp
+    title: "Suma genérica con generic math"
+    timeLimit: 180
+    prompt: |
+      Escribe un método estático genérico `Sum<T>(IEnumerable<T> values)` que funcione para cualquier tipo numérico
+      usando **generic math** (`INumber<T>`), empezando desde `T.Zero`.
+    solution: |
+      public static T Sum<T>(IEnumerable<T> values) where T : INumber<T>
+      {
+          T acc = T.Zero;
+          foreach (var v in values) acc += v;
+          return acc;
+      }
+    checks:
+      - pattern: 'static\s+T\s+Sum\s*<\s*T\s*>'
+        hint: "Firma `static T Sum<T>(...)`"
+      - pattern: 'where\s+T\s*:\s*(System\.Numerics\.)?I(Number|AdditionOperators|NumberBase)'
+        hint: "Restricción `where T : INumber<T>`"
+      - pattern: 'T\.Zero'
+        hint: "Inicializa con `T.Zero`"
+      - pattern: 'foreach|Aggregate'
+        hint: "Recorre la secuencia"
+    explanation: "INumber<T> expone operadores y miembros estáticos abstractos (C# 11), así que el JIT especializa el código por tipo sin boxing."
+
+snippets:
+  - id: n1
+    title: "Static generic cache"
+    lang: csharp
+    code: |
+      static class PropsCache<T>
+      {
+          // Se inicializa una vez por cada T cerrado, sin locks ni diccionarios
+          public static readonly PropertyInfo[] Props = typeof(T).GetProperties();
+      }
+      var props = PropsCache<Pedido>.Props;
+  - id: n2
+    title: "Restricciones más usadas"
+    lang: csharp
+    code: |
+      T Clone<T>(T x) where T : ICloneable => (T)x.Clone();
+      void Fill<T>(Span<T> s) where T : unmanaged { }
+      T Create<T>() where T : new() => new T();
+      void Key<TKey>(TKey k) where TKey : notnull { }
+
+shortcuts:
+  - tool: "Rider (IntelliJ)"
+    keys: "Alt+Enter"
+    action: "Acciones de contexto y quick-fixes"
+  - tool: "Rider (IntelliJ)"
+    keys: "Doble Shift"
+    action: "Buscar en todas partes"
+  - tool: "Rider (IntelliJ)"
+    keys: "Shift+F6"
+    action: "Renombrar símbolo"
+  - tool: "Rider (IntelliJ)"
+    keys: "Ctrl+Alt+L"
+    action: "Reformatear código"
+  - tool: "Rider (IntelliJ)"
+    keys: "Ctrl+Shift+A"
+    action: "Buscar una acción por nombre"

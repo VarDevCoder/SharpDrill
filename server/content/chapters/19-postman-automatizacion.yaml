@@ -1,0 +1,347 @@
+id: ch19
+number: 19
+title: "Postman y automatización de APIs"
+level: "Senior"
+track: api
+summary: "Colecciones, variables y entornos, scripts pre-request y post-response, tests, encadenar peticiones, data-driven y Newman en CI."
+objectives:
+  - "Organizar colecciones con variables y autenticación heredada."
+  - "Automatizar la obtención de tokens y el encadenado de peticiones."
+  - "Ejecutar las colecciones en CI con Newman y publicar los resultados."
+
+sections:
+  - id: s1
+    title: "Colecciones, variables y entornos"
+    body: |
+      Una **colección** agrupa peticiones en carpetas. Las **variables** se escriben `{{baseUrl}}` y se resuelven por ámbitos. Si el mismo nombre existe en varios, gana el **más cercano**:
+
+      **local** (script) → **data** (fichero de iteración) → **entorno** → **colección** → **global**
+
+      - **Entornos** (`local`, `staging`, `prod`): mismo conjunto de nombres con valores distintos. Cambias de entorno sin tocar las peticiones.
+      - **Variables de colección**: valores que viajan con la colección (por ejemplo, `apiVersion`).
+      - Los secretos van en **valores actuales** (*current value*), que no se sincronizan ni se exportan por defecto, o en **Postman Vault**. Nunca en el valor inicial de una colección compartida.
+
+      **Autorización heredada**: configura *Bearer Token* con `{{token}}` en la colección y deja las peticiones en **Inherit auth from parent**. Cambias el token en un solo sitio.
+
+      Atajos de productividad: **Ctrl+Enter** envía la petición, **Ctrl+S** la guarda, **Ctrl+Alt+C** abre la consola de Postman (donde ves `console.log` de los scripts y las peticiones reales enviadas).
+
+  - id: s2
+    title: "Scripts: pre-request y post-response"
+    body: |
+      Los scripts son JavaScript con el objeto `pm`. Se ejecutan **antes** (pre-request) o **después** (post-response, antes llamada pestaña *Tests*) de cada petición, y pueden definirse a nivel de colección, carpeta o petición.
+
+      Tests en post-response:
+
+      ```js
+      pm.test('200 OK', () => pm.response.to.have.status(200));
+
+      pm.test('Devuelve un token Bearer', () => {
+        const json = pm.response.json();
+        pm.expect(json.tokenType).to.eql('Bearer');
+        pm.expect(json.token).to.be.a('string').and.not.empty;
+        pm.collectionVariables.set('token', json.token);   // encadenar: lo usan las siguientes peticiones
+      });
+
+      pm.test('Responde en menos de 500 ms', () => pm.expect(pm.response.responseTime).to.be.below(500));
+      pm.test('Content-Type JSON', () => pm.response.to.have.header('Content-Type', /application\/json/));
+      ```
+
+      API más usada: `pm.response.json()`, `pm.response.code`, `pm.response.headers.get('X')`, `pm.expect(...)` (Chai), `pm.environment.set/get`, `pm.collectionVariables.set/get`, `pm.variables.get` (resuelve con precedencia), `pm.iterationData.get`, `pm.request.headers.add(...)`.
+
+      Validar el esquema de la respuesta:
+
+      ```js
+      const schema = { type: 'object', required: ['user', 'token'], properties: { token: { type: 'string' } } };
+      pm.test('Cumple el esquema', () => pm.response.to.have.jsonSchema(schema));
+      ```
+
+  - id: s3
+    title: "Obtener tokens automáticamente y encadenar flujos"
+    body: |
+      Script **pre-request a nivel de colección** que pide un token OAuth (client credentials) solo si no hay uno o está a punto de caducar:
+
+      ```js
+      const exp = Number(pm.collectionVariables.get('tokenExp') || 0);
+      if (Date.now() > exp - 60_000) {                 // no hay token o caduca en < 1 min
+      pm.sendRequest({
+        url: pm.environment.get('tokenUrl'),
+        method: 'POST',
+        header: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: {
+          mode: 'urlencoded',
+          urlencoded: [
+            { key: 'grant_type', value: 'client_credentials' },
+            { key: 'client_id', value: pm.environment.get('clientId') },
+            { key: 'client_secret', value: pm.environment.get('clientSecret') },
+            { key: 'scope', value: pm.environment.get('scope') },
+          ],
+        },
+      }, (err, res) => {
+        if (err) throw err;
+        const t = res.json();
+        pm.collectionVariables.set('token', t.access_token);
+        pm.collectionVariables.set('tokenExp', Date.now() + t.expires_in * 1000);
+      });
+      }
+      ```
+
+      **Encadenar**: guarda ids de una respuesta (`pm.collectionVariables.set('pedidoId', json.id)`) y úsalos en la siguiente (`{{pedidoId}}`). Para controlar el orden en el Collection Runner: `pm.execution.setNextRequest('Nombre')` (o `null` para parar).
+
+      Valores dinámicos integrados: `{{$guid}}`, `{{$timestamp}}`, `{{$randomEmail}}`, `{{$randomInt}}`: útiles para crear datos únicos en cada ejecución.
+
+  - id: s4
+    title: "Collection Runner, data-driven y Newman en CI"
+    body: |
+      El **Collection Runner** ejecuta toda la colección. Con un **fichero de datos** (CSV o JSON), repite la colección una vez por fila: cada columna está disponible como `{{columna}}` y en `pm.iterationData.get('columna')`.
+
+      ```csv
+      email,password,esperado
+      ana@test.io,password123,200
+      ana@test.io,mala,401
+      ```
+
+      **Newman** es el ejecutor de línea de comandos de colecciones Postman (también existe **Postman CLI**, `postman collection run`, ligado a la cuenta de Postman).
+
+      ```bash
+      npm i -g newman newman-reporter-htmlextra
+      newman run SharpDrill.postman_collection.json \
+        -e local.postman_environment.json \
+        -d casos.csv \
+        --reporters cli,junit,htmlextra \
+        --reporter-junit-export resultados.xml \
+        --bail
+      ```
+
+      Newman termina con **código de salida ≠ 0 si falla algún test**, así que rompe el pipeline. En GitHub Actions o Azure DevOps publica `resultados.xml` como informe de tests.
+
+      Buenas prácticas: una colección por API versionada en el repo, entornos sin secretos (se inyectan con `--env-var "clientSecret=$SECRET"`), tests que validan contrato (esquema, códigos, cabeceras) y no solo "200", y datos de prueba creados y limpiados por la propia colección.
+
+cards:
+  - id: c1
+    front: "Orden de precedencia de variables en Postman (de más a menos prioritaria)."
+    back: "Local → Data (iteración) → Entorno → Colección → Global."
+  - id: c2
+    front: "¿Dónde guardar secretos en Postman?"
+    back: "En el *current value* de un entorno (no se sincroniza ni exporta por defecto) o en Postman Vault; nunca en el valor inicial de una colección compartida."
+  - id: c3
+    front: "¿Cómo pasar un valor de una respuesta a la siguiente petición?"
+    back: "En post-response: `pm.collectionVariables.set('id', pm.response.json().id)` y usar `{{id}}` en la siguiente."
+  - id: c4
+    front: "¿Para qué sirve `pm.sendRequest` en un pre-request?"
+    back: "Hacer una petición auxiliar antes de la principal, típicamente obtener o refrescar un token."
+  - id: c5
+    front: "¿Qué es Newman?"
+    back: "El ejecutor CLI de colecciones Postman; devuelve código de salida ≠ 0 si fallan tests y genera informes (JUnit, HTML) para CI."
+  - id: c6
+    front: "¿Cómo ejecutar una colección con varios casos de datos?"
+    back: "Con un fichero CSV/JSON en el Runner o `newman run -d datos.csv`; cada fila es una iteración y se accede con `{{col}}` o `pm.iterationData.get`."
+  - id: c7
+    front: "Atajo de Postman para enviar la petición actual."
+    back: "**Ctrl+Enter** (Cmd+Enter en macOS)."
+  - id: c8
+    front: "¿Qué es 'Inherit auth from parent'?"
+    back: "La petición usa la autorización configurada en su carpeta o colección; así el Bearer `{{token}}` se define en un único sitio."
+
+questions:
+  - id: q1
+    type: mcq
+    prompt: "Existe `baseUrl` como variable global (`http://prod`) y en el entorno activo (`http://localhost:3000`). ¿Cuál se usa?"
+    options: ["La global", "La del entorno", "Error de conflicto", "La primera creada"]
+    answer: 1
+    explanation: "El entorno tiene más precedencia que las globales."
+  - id: q2
+    type: mcq
+    prompt: "¿Qué línea guarda el token de la respuesta para usarlo en las siguientes peticiones de la colección?"
+    options:
+      - "pm.response.set('token')"
+      - "pm.collectionVariables.set('token', pm.response.json().token)"
+      - "postman.token = pm.response.token"
+      - "pm.request.auth = token"
+    answer: 1
+    explanation: "pm.collectionVariables.set (o pm.environment.set) persiste el valor para las siguientes peticiones."
+  - id: q3
+    type: tf
+    prompt: "Si un test de Postman falla, `newman run` termina con código de salida 0 para no romper el pipeline."
+    answer: false
+    explanation: "Newman devuelve un código distinto de 0 cuando hay fallos, que es justo lo que necesita un pipeline de CI."
+  - id: q4
+    type: fill
+    prompt: "Completa: `pm.______('Responde 201', () => pm.response.to.have.status(201));`"
+    answer: ["test"]
+    explanation: "pm.test(nombre, fn) define un test que aparece en los resultados."
+  - id: q5
+    type: mcq
+    prompt: "¿Dónde pondrías el script que obtiene un token OAuth para que aplique a todas las peticiones?"
+    options: ["Post-response de cada petición", "Pre-request de la colección", "En el body", "En una variable global"]
+    answer: 1
+    explanation: "Los pre-request de colección se ejecutan antes de cada petición de la colección."
+  - id: q6
+    type: mcq
+    prompt: "¿Qué opción de Newman pasa un secreto sin guardarlo en el fichero de entorno?"
+    options: ["--secret clientSecret", "--env-var \"clientSecret=$SECRET\"", "-s $SECRET", "--global clientSecret"]
+    answer: 1
+    explanation: "--env-var sobrescribe o añade variables de entorno en la ejecución (también existe --global-var)."
+  - id: q7
+    type: tf
+    prompt: "Con un CSV de 10 filas en el Collection Runner, la colección se ejecuta 10 veces."
+    answer: true
+    explanation: "Cada fila es una iteración, con sus columnas como variables data."
+  - id: q8
+    type: mcq
+    prompt: "¿Qué aserción comprueba que la respuesta tarda menos de 300 ms?"
+    options:
+      - "pm.expect(pm.response.time).to.eql(300)"
+      - "pm.expect(pm.response.responseTime).to.be.below(300)"
+      - "pm.response.to.be.fast"
+      - "pm.test.timeout(300)"
+    answer: 1
+    explanation: "responseTime está en milisegundos; below es la aserción de Chai para '<'."
+
+drills:
+  - id: d1
+    lang: js
+    title: "Tests post-response del login"
+    timeLimit: 180
+    prompt: |
+      Escribe el script **post-response** de `POST /api/auth/login` que compruebe: status **200**, que `tokenType`
+      sea `"Bearer"` y que exista `token`; y guarde el token en la **variable de colección** `token`.
+    solution: |
+      pm.test('Status 200', () => {
+        pm.response.to.have.status(200);
+      });
+
+      pm.test('Devuelve token Bearer', () => {
+        const json = pm.response.json();
+        pm.expect(json.tokenType).to.eql('Bearer');
+        pm.expect(json.token).to.be.a('string');
+        pm.collectionVariables.set('token', json.token);
+      });
+    checks:
+      - pattern: 'pm\.test\s*\('
+        hint: "Define tests con `pm.test(...)`"
+      - pattern: 'pm\.response\.to\.have\.status\s*\(\s*200\s*\)|pm\.expect\s*\(\s*pm\.response\.code\s*\)\.to\.(eql|equal)\s*\(\s*200'
+        hint: "Comprueba el status 200"
+      - pattern: 'pm\.response\.json\s*\(\s*\)'
+        hint: "Lee el cuerpo con `pm.response.json()`"
+      - pattern: 'tokenType\s*\)\s*\.to\.(eql|equal|be\.eql)\s*\(\s*[''"]Bearer[''"]'
+        hint: "`pm.expect(json.tokenType).to.eql('Bearer')`"
+      - pattern: 'pm\.collectionVariables\.set\s*\(\s*[''"]token[''"]'
+        hint: "Guarda con `pm.collectionVariables.set('token', ...)`"
+  - id: d2
+    lang: js
+    title: "Pre-request que obtiene un token con pm.sendRequest"
+    timeLimit: 300
+    prompt: |
+      Script **pre-request** de colección que haga `POST {{baseUrl}}/api/auth/login` con `pm.sendRequest`
+      enviando JSON con `email` y `password` (de variables de entorno) y guarde la respuesta `.token` en
+      `pm.collectionVariables` como `token`. Solo debe pedirlo si `token` está vacío.
+    solution: |
+      if (!pm.collectionVariables.get('token')) {
+        pm.sendRequest({
+          url: pm.environment.get('baseUrl') + '/api/auth/login',
+          method: 'POST',
+          header: { 'Content-Type': 'application/json' },
+          body: {
+            mode: 'raw',
+            raw: JSON.stringify({ email: pm.environment.get('email'), password: pm.environment.get('password') }),
+          },
+        }, (err, res) => {
+          if (err) throw err;
+          pm.collectionVariables.set('token', res.json().token);
+        });
+      }
+    checks:
+      - pattern: 'if\s*\(\s*!\s*pm\.(collectionVariables|environment|variables)\.get\s*\(\s*[''"]token[''"]\s*\)\s*\)'
+        hint: "Pide el token solo si no existe: `if (!pm.collectionVariables.get('token'))`"
+      - pattern: 'pm\.sendRequest\s*\('
+        hint: "Usa `pm.sendRequest`"
+      - pattern: 'method\s*:\s*[''"]POST[''"]'
+        hint: "`method: 'POST'`"
+      - pattern: 'mode\s*:\s*[''"]raw[''"]'
+        hint: "Cuerpo JSON con `mode: 'raw'`"
+      - pattern: 'JSON\.stringify\s*\('
+        hint: "Serializa el cuerpo con JSON.stringify"
+      - pattern: 'pm\.collectionVariables\.set\s*\(\s*[''"]token[''"]\s*,\s*\w+\.json\s*\(\s*\)\.token'
+        hint: "Guarda `res.json().token`"
+  - id: d3
+    lang: bash
+    title: "Newman en CI"
+    timeLimit: 120
+    prompt: |
+      Escribe el comando **newman** que ejecute `api.postman_collection.json` con el entorno `ci.postman_environment.json`,
+      inyecte la variable `password` desde `$API_PASSWORD`, genere un informe **JUnit** en `resultados.xml` y se
+      detenga en el primer fallo.
+    solution: |
+      newman run api.postman_collection.json \
+        -e ci.postman_environment.json \
+        --env-var "password=$API_PASSWORD" \
+        --reporters cli,junit \
+        --reporter-junit-export resultados.xml \
+        --bail
+    checks:
+      - pattern: 'newman\s+run\s+api\.postman_collection\.json'
+        hint: "`newman run api.postman_collection.json`"
+      - pattern: '(-e|--environment)\s+ci\.postman_environment\.json'
+        hint: "Entorno con `-e ci.postman_environment.json`"
+      - pattern: '--env-var\s+[''"]?password=\$\{?API_PASSWORD'
+        hint: "`--env-var \"password=$API_PASSWORD\"`"
+      - pattern: '--reporters\s+\S*junit'
+        hint: "Activa el reporter junit"
+      - pattern: '--reporter-junit-export\s+resultados\.xml'
+        hint: "`--reporter-junit-export resultados.xml`"
+      - pattern: '--bail'
+        hint: "Detente al primer fallo con `--bail`"
+
+snippets:
+  - id: n1
+    title: "Tests de contrato reutilizables (script de colección)"
+    lang: js
+    code: |
+      // Post-response a nivel de colección: se aplica a todas las peticiones
+      pm.test('Sin errores 5xx', () => pm.expect(pm.response.code).to.be.below(500));
+      pm.test('Responde JSON', () => pm.response.to.have.header('Content-Type', /json/));
+      if (pm.response.code === 401) {
+        pm.test('401 incluye WWW-Authenticate', () => pm.response.to.have.header('WWW-Authenticate'));
+      }
+  - id: n2
+    title: "Datos únicos y dinámicos"
+    lang: js
+    code: |
+      // Pre-request
+      pm.variables.set('email', `qa+${Date.now()}@test.io`);
+      // En el body: { "email": "{{email}}", "id": "{{$guid}}", "n": {{$randomInt}} }
+  - id: n3
+    title: "GitHub Actions con Newman"
+    lang: bash
+    code: |
+      # .github/workflows/api-tests.yml (fragmento)
+      #   - run: npm i -g newman
+      #   - run: newman run postman/SharpDrill.postman_collection.json \
+      #            -e postman/local.postman_environment.json \
+      #            --env-var "password=${{ secrets.API_PASSWORD }}" \
+      #            --reporters cli,junit --reporter-junit-export results.xml
+      npm i -g newman
+      newman run postman/SharpDrill.postman_collection.json -e postman/local.postman_environment.json
+  - id: n4
+    title: "Colección de SharpDrill incluida en el repo"
+    lang: bash
+    code: |
+      npm start &                     # levanta la API en :3000
+      npm run test:api                # ejecuta postman/SharpDrill.postman_collection.json con Newman
+
+shortcuts:
+  - tool: "Postman"
+    keys: "Ctrl+Enter"
+    action: "Enviar la petición"
+  - tool: "Postman"
+    keys: "Ctrl+S"
+    action: "Guardar la petición"
+  - tool: "Postman"
+    keys: "Ctrl+T / Ctrl+W"
+    action: "Nueva pestaña / cerrar pestaña"
+  - tool: "Postman"
+    keys: "Ctrl+Alt+C"
+    action: "Abrir la consola de Postman (logs y peticiones reales)"
+  - tool: "Postman"
+    keys: "Ctrl+K"
+    action: "Buscar en el workspace (colecciones, peticiones, APIs)"

@@ -2,6 +2,7 @@ id: ch11
 number: 11
 title: "Arquitectura, inyección de dependencias y errores"
 level: "Senior"
+track: csharp
 summary: "Tiempos de vida en el contenedor de DI, captive dependencies, Options pattern, SOLID aplicado, manejo de excepciones y testing."
 objectives:
   - "Elegir y validar tiempos de vida de servicios."
@@ -180,3 +181,76 @@ questions:
     options: ["SOAP Fault", "ProblemDetails (RFC 9457)", "JSON-RPC error", "GraphQL errors"]
     answer: 1
     explanation: "ProblemDetails define type, title, status, detail e instance (RFC 9457, sucesor de la 7807)."
+
+drills:
+  - id: d1
+    lang: csharp
+    title: "Registrar Options validadas al arrancar"
+    timeLimit: 180
+    prompt: |
+      En `Program.cs`, registra `SmtpOptions` enlazada a la sección **"Smtp"** de la configuración,
+      con validación por DataAnnotations y que falle **al arrancar** si es inválida.
+      Registra además `IEmailSender` → `SmtpEmailSender` como **scoped**.
+    solution: |
+      builder.Services.AddOptions<SmtpOptions>()
+          .Bind(builder.Configuration.GetSection("Smtp"))
+          .ValidateDataAnnotations()
+          .ValidateOnStart();
+
+      builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+    checks:
+      - pattern: 'AddOptions\s*<\s*SmtpOptions\s*>'
+        hint: "`AddOptions<SmtpOptions>()`"
+      - pattern: '\.Bind\s*\([^)]*GetSection\s*\(\s*"Smtp"\s*\)'
+        hint: "Enlaza con `.Bind(Configuration.GetSection(\"Smtp\"))`"
+      - pattern: '\.ValidateDataAnnotations\s*\(\s*\)'
+        hint: "Valida con `.ValidateDataAnnotations()`"
+      - pattern: '\.ValidateOnStart\s*\(\s*\)'
+        hint: "Falla al arrancar con `.ValidateOnStart()`"
+      - pattern: 'AddScoped\s*<\s*IEmailSender\s*,\s*SmtpEmailSender\s*>'
+        hint: "`AddScoped<IEmailSender, SmtpEmailSender>()`"
+    explanation: "ValidateOnStart convierte un error de configuración en un fallo inmediato del despliegue en vez de un error en la primera petición."
+
+snippets:
+  - id: n1
+    title: "Usar servicios scoped desde un BackgroundService"
+    lang: csharp
+    code: |
+      public sealed class Limpieza(IServiceScopeFactory scopes, TimeProvider time) : BackgroundService
+      {
+          protected override async Task ExecuteAsync(CancellationToken ct)
+          {
+              using var timer = new PeriodicTimer(TimeSpan.FromMinutes(5), time);
+              while (await timer.WaitForNextTickAsync(ct))
+              {
+                  await using var scope = scopes.CreateAsyncScope();
+                  var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                  await db.Sesiones.Where(s => s.Expira < time.GetUtcNow()).ExecuteDeleteAsync(ct);
+              }
+          }
+      }
+  - id: n2
+    title: "Test de integración con WebApplicationFactory"
+    lang: csharp
+    code: |
+      public class ApiTests(WebApplicationFactory<Program> factory) : IClassFixture<WebApplicationFactory<Program>>
+      {
+          [Fact]
+          public async Task Health_devuelve_200()
+          {
+              var client = factory.CreateClient();
+              var res = await client.GetAsync("/health");
+              res.EnsureSuccessStatusCode();
+          }
+      }
+
+shortcuts:
+  - tool: "Visual Studio"
+    keys: "Ctrl+E, T"
+    action: "Abrir el Explorador de pruebas"
+  - tool: "Visual Studio"
+    keys: "Ctrl+R, A"
+    action: "Ejecutar todas las pruebas"
+  - tool: "Visual Studio"
+    keys: "Ctrl+R, T"
+    action: "Ejecutar las pruebas del contexto actual"

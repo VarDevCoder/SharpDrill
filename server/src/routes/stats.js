@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireUser } from '../auth.js';
+import { httpError } from '../errors.js';
 
 const DAY_MS = 86_400_000;
 const dayKey = (d) => d.toISOString().slice(0, 10);
@@ -17,91 +18,78 @@ export function computeStreak(daysWithActivity, today = new Date()) {
   return streak;
 }
 
-export default function statsRoutes({ db, content, progress }) {
+const pct = (ok, n) => (n ? Math.round((ok / n) * 100) : null);
+
+export default function statsRoutes({ repo, content, progress }) {
   const r = Router();
   r.use(requireUser);
 
-  r.get('/', (req, res) => {
+  r.get('/', async (req, res) => {
     const userId = req.user.id;
     const now = new Date();
     const since = new Date(now.getTime() - 83 * DAY_MS);
 
-    const activityRows = db.prepare(`
-      SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS n, SUM(correct) AS ok
-      FROM attempts WHERE user_id = ? AND created_at >= ? GROUP BY day ORDER BY day`)
-      .all(userId, dayKey(since));
-    const allDays = db.prepare('SELECT DISTINCT substr(created_at, 1, 10) AS day FROM attempts WHERE user_id = ?')
-      .all(userId).map((x) => x.day);
+    const [activityRows, days, totals, byChapter, byModeRows, dueNow, weakRows, summaries] = await Promise.all([
+      repo.activity(userId, dayKey(since)),
+      repo.activeDays(userId),
+      repo.totals(userId),
+      repo.accuracyBy(userId, 'chapter'),
+      repo.accuracyBy(userId, 'mode'),
+      repo.countDue(userId, null, now),
+      repo.weakItems(userId, 8),
+      progress.chapterSummaries(userId, now),
+    ]);
 
-    const activity = [];
-    for (let i = 0; i < 84; i++) {
+    const byDay = new Map(activityRows.map((a) => [a.day, a.count]));
+    const activity = Array.from({ length: 84 }, (_, i) => {
       const d = dayKey(new Date(since.getTime() + i * DAY_MS));
-      const row = activityRows.find((x) => x.day === d);
-      activity.push({ day: d, count: row?.n ?? 0 });
-    }
+      return { day: d, count: byDay.get(d) ?? 0 };
+    });
 
-    const totals = db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(correct), 0) AS ok FROM attempts WHERE user_id = ?').get(userId);
-    const byChapterAcc = new Map(db.prepare(`
-      SELECT chapter_id, COUNT(*) AS n, SUM(correct) AS ok FROM attempts WHERE user_id = ? GROUP BY chapter_id`)
-      .all(userId).map((x) => [x.chapter_id, x]));
-    const byMode = db.prepare(`SELECT mode, COUNT(*) AS n, SUM(correct) AS ok FROM attempts WHERE user_id = ? GROUP BY mode`)
-      .all(userId).map((x) => ({ mode: x.mode, count: x.n, accuracy: Math.round((x.ok / x.n) * 100) }));
-
-    const nowIso = now.toISOString();
-    const dueNow = db.prepare('SELECT COUNT(*) AS n FROM reviews WHERE user_id = ? AND due_at <= ?').get(userId, nowIso).n;
     const forecast = [];
     for (let i = 1; i <= 7; i++) {
-      const end = new Date(now.getTime() + i * DAY_MS).toISOString();
-      const start = new Date(now.getTime() + (i - 1) * DAY_MS).toISOString();
-      forecast.push({
-        day: dayKey(new Date(now.getTime() + i * DAY_MS)),
-        count: db.prepare('SELECT COUNT(*) AS n FROM reviews WHERE user_id = ? AND due_at > ? AND due_at <= ?').get(userId, start, end).n,
+      const from = new Date(now.getTime() + (i - 1) * DAY_MS);
+      const to = new Date(now.getTime() + i * DAY_MS);
+      forecast.push({ day: dayKey(to), count: await repo.countDue(userId, from, to) });
+    }
+
+    const weak = [];
+    for (const rv of weakRows) {
+      const it = await progress.resolveItem(userId, rv.itemId);
+      if (!it) continue;
+      weak.push({
+        id: rv.itemId, chapterId: it.chapterId, kind: it.kind, lapses: rv.lapses, lastGrade: rv.lastGrade,
+        text: it.kind === 'card' ? it.public.front : it.kind === 'drill' ? it.public.title : it.public.prompt,
       });
     }
 
-    const weak = db.prepare(`SELECT item_id, lapses, ease, last_grade FROM reviews
-      WHERE user_id = ? AND (last_grade = 0 OR lapses > 0) ORDER BY last_grade ASC, lapses DESC, ease ASC LIMIT 8`)
-      .all(userId)
-      .map((rv) => {
-        const it = progress.resolveItem(userId, rv.item_id);
-        if (!it) return null;
-        return {
-          id: rv.item_id, chapterId: it.chapterId, kind: it.kind, lapses: rv.lapses, lastGrade: rv.last_grade,
-          text: it.kind === 'card' ? it.public.front : it.public.prompt,
-        };
-      })
-      .filter(Boolean);
-
-    const todayCount = activity.at(-1)?.count ?? 0;
+    const acc = new Map(byChapter.map((x) => [x.key, x]));
     res.json({
-      streak: computeStreak(allDays, now),
-      today: todayCount,
+      streak: computeStreak(days, now),
+      today: byDay.get(dayKey(now)) ?? 0,
       dailyGoal: req.user.dailyGoal,
       dueNow,
-      totals: { attempts: totals.n, correct: totals.ok, accuracy: totals.n ? Math.round((totals.ok / totals.n) * 100) : 0 },
+      totals: { ...totals, accuracy: pct(totals.correct, totals.attempts) ?? 0 },
       activity,
       forecast,
-      byMode,
-      chapters: progress.chapterSummaries(userId, now).map((c) => {
-        const a = byChapterAcc.get(c.id);
-        return { ...c, attempts: a?.n ?? 0, accuracy: a ? Math.round((a.ok / a.n) * 100) : null };
+      byMode: byModeRows.map((m) => ({ mode: m.key, count: m.count, accuracy: pct(m.correct, m.count) })),
+      chapters: summaries.map((c) => {
+        const a = acc.get(c.id);
+        return { ...c, attempts: a?.count ?? 0, accuracy: a ? pct(a.correct, a.count) : null };
+      }),
+      tracks: Object.values(content.tracks).map((t) => {
+        const cs = summaries.filter((c) => c.track === t.id);
+        return { ...t, chapters: cs.length, mastery: Math.round(cs.reduce((s, c) => s + c.mastery, 0) / (cs.length || 1)) };
       }),
       weak,
     });
   });
 
   /** Reinicia el progreso de un capítulo (o de todo, si no se indica). */
-  r.delete('/progress', (req, res) => {
-    const userId = req.user.id;
+  r.delete('/progress', async (req, res) => {
     const ch = req.query.chapter ? String(req.query.chapter) : null;
-    if (ch && !content.chapterById.has(ch)) return res.status(404).json({ error: 'Capítulo no encontrado' });
-    if (ch) {
-      db.prepare('DELETE FROM reviews WHERE user_id = ? AND chapter_id = ?').run(userId, ch);
-      db.prepare('DELETE FROM sections_read WHERE user_id = ? AND chapter_id = ?').run(userId, ch);
-    } else {
-      db.prepare('DELETE FROM reviews WHERE user_id = ?').run(userId);
-      db.prepare('DELETE FROM sections_read WHERE user_id = ?').run(userId);
-    }
+    if (ch && !content.chapterById.has(ch)) throw httpError(404, 'Capítulo no encontrado');
+    await repo.resetProgress(req.user.id, ch);
     res.json({ ok: true });
   });
 

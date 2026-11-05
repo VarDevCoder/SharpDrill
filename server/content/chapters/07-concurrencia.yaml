@@ -2,6 +2,7 @@ id: ch07
 number: 7
 title: "Concurrencia y paralelismo"
 level: "Senior"
+track: csharp
 summary: "Condiciones de carrera, lock/Monitor, Interlocked, colecciones concurrentes, SemaphoreSlim, Channels y paralelismo de datos."
 objectives:
   - "Identificar operaciones no atómicas y condiciones de carrera."
@@ -192,3 +193,67 @@ questions:
     options: ["Dictionary con lock", "ConcurrentDictionary", "FrozenDictionary", "Hashtable"]
     answer: 2
     explanation: "FrozenDictionary (.NET 8) invierte más en la construcción para optimizar las lecturas y es inmutable, por tanto seguro entre hilos."
+
+drills:
+  - id: d1
+    lang: csharp
+    title: "Limitar concurrencia con SemaphoreSlim"
+    timeLimit: 240
+    prompt: |
+      Implementa `Task ProcesarTodosAsync(IEnumerable<int> ids, Func<int, Task> trabajo)` que ejecute
+      `trabajo(id)` para todos los ids con **como máximo 4 en paralelo** usando `SemaphoreSlim`,
+      y espere a que terminen todos.
+    solution: |
+      public async Task ProcesarTodosAsync(IEnumerable<int> ids, Func<int, Task> trabajo)
+      {
+          using var sem = new SemaphoreSlim(4);
+          var tareas = ids.Select(async id =>
+          {
+              await sem.WaitAsync();
+              try { await trabajo(id); }
+              finally { sem.Release(); }
+          });
+          await Task.WhenAll(tareas);
+      }
+    checks:
+      - pattern: 'new\s+SemaphoreSlim\s*\(\s*4'
+        hint: "Crea `new SemaphoreSlim(4)`"
+      - pattern: 'await\s+\w+\.WaitAsync\s*\('
+        hint: "Espera con `await sem.WaitAsync()` (no Wait())"
+      - pattern: 'finally\s*\{[^}]*\.Release\s*\(\s*\)'
+        hint: "Libera en `finally { sem.Release(); }`"
+      - pattern: 'Task\.WhenAll\s*\('
+        hint: "Espera todas con `Task.WhenAll`"
+    explanation: "El Release en finally garantiza liberar el cupo aunque falle el trabajo. Alternativa moderna: Parallel.ForEachAsync con MaxDegreeOfParallelism."
+
+snippets:
+  - id: n1
+    title: "Pipeline productor/consumidor con Channel"
+    lang: csharp
+    code: |
+      var ch = Channel.CreateBounded<Job>(new BoundedChannelOptions(100) { FullMode = BoundedChannelFullMode.Wait });
+      var consumidor = Task.Run(async () =>
+      {
+          await foreach (var job in ch.Reader.ReadAllAsync(ct)) await ProcesarAsync(job, ct);
+      });
+      foreach (var j in jobs) await ch.Writer.WriteAsync(j, ct);
+      ch.Writer.Complete();
+      await consumidor;
+  - id: n2
+    title: "Parallel.ForEachAsync con límite"
+    lang: csharp
+    code: |
+      await Parallel.ForEachAsync(ids, new ParallelOptions { MaxDegreeOfParallelism = 8, CancellationToken = ct },
+          async (id, token) => await api.SyncAsync(id, token));
+  - id: n3
+    title: "Caché concurrente con creación única"
+    lang: csharp
+    code: |
+      private readonly ConcurrentDictionary<string, Lazy<Task<Config>>> _cache = new();
+      public Task<Config> GetAsync(string key) =>
+          _cache.GetOrAdd(key, k => new Lazy<Task<Config>>(() => CargarAsync(k))).Value;
+
+shortcuts:
+  - tool: "Visual Studio"
+    keys: "Ctrl+Alt+H"
+    action: "Ventana de hilos (Threads) durante la depuración"

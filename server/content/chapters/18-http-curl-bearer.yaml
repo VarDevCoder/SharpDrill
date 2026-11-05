@@ -1,0 +1,351 @@
+id: ch18
+number: 18
+title: "HTTP, curl y Bearer tokens"
+level: "Senior"
+track: api
+summary: "Semántica HTTP, curl como navaja suiza, autenticación Bearer, JWT por dentro y flujos OAuth 2.0 / OpenID Connect."
+objectives:
+  - "Depurar cualquier API desde la terminal con curl."
+  - "Explicar qué contiene un JWT y qué debe validarse."
+  - "Elegir el flujo OAuth 2.0 correcto para cada tipo de cliente."
+
+sections:
+  - id: s1
+    title: "HTTP que un senior debe dominar"
+    body: |
+      **Métodos**: `GET` (leer, seguro e idempotente), `POST` (crear o acciones, no idempotente), `PUT` (reemplazar, idempotente), `PATCH` (modificar parcialmente), `DELETE` (idempotente).
+
+      **Idempotente** = repetir la petición deja el sistema igual que hacerla una vez. Importa para los reintentos: solo reintenta automáticamente operaciones idempotentes o con *Idempotency-Key*.
+
+      **Códigos de estado clave**:
+
+      | Código | Significado |
+      |---|---|
+      | 200 / 201 / 204 | OK / creado (con `Location`) / sin contenido |
+      | 301 / 302 / 304 | Redirección permanente / temporal / no modificado (caché) |
+      | 400 | Petición mal formada o inválida |
+      | **401** | **No autenticado** (falta el token o es inválido). Debe incluir `WWW-Authenticate` |
+      | **403** | **Autenticado pero sin permiso** |
+      | 404 / 409 / 422 | No existe / conflicto (concurrencia, duplicado) / validación semántica |
+      | 429 | Demasiadas peticiones (mira `Retry-After`) |
+      | 500 / 502 / 503 / 504 | Error del servidor / gateway con backend inválido / no disponible / timeout del gateway |
+
+      Cabeceras frecuentes: `Content-Type`, `Accept`, `Authorization`, `Cache-Control`, `ETag` + `If-None-Match` (caché), `If-Match` (concurrencia optimista), `Location`, `Retry-After`, `X-Request-Id` / `traceparent` (trazabilidad).
+
+  - id: s2
+    title: "curl a fondo"
+    body: |
+      ```bash
+      # GET mostrando cabeceras de respuesta
+      curl -i http://localhost:3000/api/health
+
+      # Login en SharpDrill y guardar el token (jq extrae el campo)
+      TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
+        -H 'Content-Type: application/json' \
+        -d '{"email":"ana@test.io","password":"password123"}' | jq -r .token)
+
+      # Usarlo como Bearer
+      curl -s http://localhost:3000/api/stats -H "Authorization: Bearer $TOKEN" | jq .
+
+      # --json (curl 7.82+): pone Content-Type y Accept JSON y hace POST
+      curl --json '{"itemId":"ch01.q1","answer":0}' -H "Authorization: Bearer $TOKEN" \
+        http://localhost:3000/api/review/answer
+      ```
+
+      | Opción | Para qué |
+      |---|---|
+      | `-X MÉTODO` | Forzar el método (con `-d` ya es POST) |
+      | `-H 'K: V'` | Añadir cabecera |
+      | `-d` / `--data-raw` / `-d @archivo.json` | Cuerpo (por defecto `application/x-www-form-urlencoded`) |
+      | `-i` / `-I` / `-v` | Ver cabeceras / solo HEAD / todo el intercambio (TLS incluido) |
+      | `-s -S` | Silencioso pero mostrando errores |
+      | `-f` / `--fail-with-body` | Código de salida ≠ 0 si HTTP ≥ 400 (imprescindible en scripts y CI) |
+      | `-L` | Seguir redirecciones |
+      | `-o` / `-O` | Guardar en archivo / con el nombre remoto |
+      | `-w '%{http_code} %{time_total}\n'` | Imprimir métricas tras la respuesta |
+      | `-G --data-urlencode 'q=a b'` | Query string codificada correctamente |
+      | `-F 'file=@foto.png'` | multipart/form-data |
+      | `--retry 3 --max-time 10` | Reintentos y timeout total |
+      | `-u user:pass` | Basic auth |
+      | `-k` | Ignora errores TLS: **solo** en local, nunca en producción |
+
+      Truco: en Chrome DevTools → Network → clic derecho sobre una petición → **Copy as cURL** para reproducirla en la terminal.
+
+  - id: s3
+    title: "Bearer tokens y JWT"
+    body: |
+      `Authorization: Bearer <token>` (RFC 6750): *quien porte el token tiene acceso*. Por eso: siempre HTTPS, vida corta y nunca en URLs ni logs.
+
+      Dos tipos de token:
+
+      - **Opacos** (como los de SharpDrill: `sd_…`): cadena aleatoria; el servidor busca su hash en la BD. Revocación inmediata.
+      - **JWT** (autocontenidos): `header.payload.signature` en Base64URL. El servidor valida la firma sin consultar la BD; revocar es más difícil (vida corta + refresh).
+
+      ```json
+      // payload de un JWT de acceso
+      { "iss": "https://login.microsoftonline.com/<tenant>/v2.0", "aud": "api://pedidos",
+        "sub": "8f2c…", "scp": "pedidos.read", "exp": 1767225600, "iat": 1767222000, "nbf": 1767222000 }
+      ```
+
+      - Un JWT firmado (JWS) **no está cifrado**: cualquiera puede leer el payload. No metas secretos.
+      - Qué debe validar la API: **firma** (con la clave pública del emisor vía JWKS), **`exp`/`nbf`**, **`iss`**, **`aud`** y los **scopes/roles**.
+      - Ataques clásicos: aceptar `alg: none`, confundir RS256 con HS256 usando la clave pública como secreto, no validar `aud` (un token para otra API funciona en la tuya).
+      - RS256/ES256 (asimétricos) permiten que muchos servicios validen sin conocer el secreto de firma.
+
+      ```bash
+      # Ver el payload de un JWT en la terminal
+      echo "$JWT" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null | jq .
+      ```
+
+      En SPAs: guardar tokens en `localStorage` los expone a XSS. Alternativas: token en memoria + refresh en cookie `HttpOnly`, o el patrón **BFF** (el backend guarda los tokens y el navegador solo tiene una cookie de sesión).
+
+  - id: s4
+    title: "OAuth 2.0 y OpenID Connect"
+    body: |
+      **OAuth 2.0** delega **autorización** (obtener un *access token* para llamar a una API). **OpenID Connect** añade **autenticación** (un *id_token* con la identidad del usuario).
+
+      | Flujo | Cuándo |
+      |---|---|
+      | **Authorization Code + PKCE** | Apps con usuario: SPA, móvil, web. El estándar actual |
+      | **Client Credentials** | Servicio a servicio, sin usuario (jobs, microservicios) |
+      | **Refresh Token** | Renovar el access token sin volver a pedir login |
+      | Device Code | Dispositivos sin navegador (CLI, TV) |
+      | ~~Implicit~~ / ~~Password~~ | Obsoletos: no usar |
+
+      Client credentials contra Microsoft Entra ID:
+
+      ```bash
+      curl -s -X POST "https://login.microsoftonline.com/$TENANT/oauth2/v2.0/token" \
+        -d grant_type=client_credentials \
+        -d client_id="$CLIENT_ID" \
+        -d client_secret="$CLIENT_SECRET" \
+        -d scope="api://pedidos/.default" | jq -r .access_token
+      ```
+
+      **PKCE**: el cliente genera un `code_verifier` aleatorio y envía su hash (`code_challenge`) al pedir el código; al canjearlo envía el verifier. Así un código interceptado no sirve a un atacante.
+
+      **Scopes** (`pedidos.read`) limitan lo que el token permite; **roles** (`roles` claim) suelen usarse en client credentials. Principio de mínimo privilegio.
+
+cards:
+  - id: c1
+    front: "Diferencia entre 401 y 403."
+    back: "401: no autenticado (falta el token o es inválido); debe incluir `WWW-Authenticate`. 403: autenticado, pero sin permiso para ese recurso."
+  - id: c2
+    front: "¿Qué es una operación idempotente y por qué importa?"
+    back: "Repetirla deja el mismo estado que hacerla una vez (GET, PUT, DELETE). Permite reintentos seguros; POST necesita una Idempotency-Key."
+  - id: c3
+    front: "¿Para qué sirve `curl -f` (o `--fail-with-body`)?"
+    back: "Hace que curl termine con código de error si la respuesta HTTP es ≥ 400; imprescindible en scripts y CI, que si no darían el paso por bueno."
+  - id: c4
+    front: "¿Está cifrado el payload de un JWT?"
+    back: "No (en JWS). Está codificado en Base64URL y firmado: cualquiera puede leerlo, pero nadie puede modificarlo sin invalidar la firma."
+  - id: c5
+    front: "5 cosas que una API debe validar de un JWT."
+    back: "Firma (clave del emisor), `exp`/`nbf`, `iss` (emisor), `aud` (que sea para esta API) y scopes/roles requeridos."
+  - id: c6
+    front: "¿Qué flujo OAuth usar para un microservicio que llama a otro sin usuario?"
+    back: "**Client Credentials**."
+  - id: c7
+    front: "¿Qué problema resuelve PKCE?"
+    back: "Que un authorization code interceptado se pueda canjear: sin el `code_verifier` original, el código no sirve."
+  - id: c8
+    front: "Token opaco vs JWT."
+    back: "Opaco: cadena aleatoria que el servidor busca en BD (revocación inmediata). JWT: autocontenido y verificable sin BD, pero difícil de revocar antes de `exp`."
+  - id: c9
+    front: "¿Qué hace `curl --json '{...}'`?"
+    back: "Envía el cuerpo como POST con `Content-Type: application/json` y `Accept: application/json` (curl 7.82+)."
+
+questions:
+  - id: q1
+    type: mcq
+    prompt: "Una API recibe un token válido de un usuario sin el rol Admin en un endpoint de administración. ¿Qué debe responder?"
+    options: ["401 Unauthorized", "403 Forbidden", "404 Not Found", "400 Bad Request"]
+    answer: 1
+    explanation: "El usuario está autenticado (token válido) pero no autorizado: 403. (Algunas APIs devuelven 404 para no revelar que el recurso existe.)"
+  - id: q2
+    type: mcq
+    prompt: "¿Qué método HTTP NO es idempotente?"
+    options: ["GET", "PUT", "DELETE", "POST"]
+    answer: 3
+    explanation: "Repetir un POST puede crear dos recursos. Por eso se usan Idempotency-Keys en pagos y pedidos."
+  - id: q3
+    type: tf
+    prompt: "En un pipeline de CI, `curl https://api/health` hace fallar el paso si la API responde 500."
+    answer: false
+    explanation: "Sin -f/--fail, curl termina con código 0 aunque la respuesta sea 500. Usa `curl -fsS`."
+  - id: q4
+    type: mcq
+    prompt: "¿Qué opción de curl muestra TODO el intercambio (petición, TLS, cabeceras)?"
+    options: ["-i", "-I", "-v", "-s"]
+    answer: 2
+    explanation: "-v (verbose) muestra la conexión, el handshake TLS y las cabeceras enviadas y recibidas."
+  - id: q5
+    type: mcq
+    prompt: "Tu API acepta tokens de Entra ID pero no valida `aud`. ¿Qué riesgo hay?"
+    options:
+      - "Ninguno si la firma es válida"
+      - "Un token emitido para OTRA API del mismo tenant sería aceptado por la tuya"
+      - "Los tokens caducan antes"
+      - "No se puede leer el sub"
+    answer: 1
+    explanation: "La audiencia garantiza que el token se emitió para tu API. Sin validarla, cualquier token válido del emisor sirve."
+  - id: q6
+    type: fill
+    prompt: "Completa la cabecera: `Authorization: ______ eyJhbGciOi...`"
+    answer: ["Bearer"]
+    explanation: "Esquema Bearer (RFC 6750)."
+  - id: q7
+    type: mcq
+    prompt: "¿Qué flujo OAuth 2.0 es el recomendado hoy para una SPA en React?"
+    options: ["Implicit", "Resource Owner Password", "Authorization Code + PKCE", "Client Credentials"]
+    answer: 2
+    explanation: "Implicit está obsoleto; una SPA no puede guardar un client secret, así que usa Authorization Code con PKCE (o un BFF)."
+  - id: q8
+    type: tf
+    prompt: "Es seguro incluir el email y el número de tarjeta del usuario en el payload de un JWT porque está firmado."
+    answer: false
+    explanation: "Firmado no es cifrado: el payload es legible por cualquiera que tenga el token."
+
+drills:
+  - id: d1
+    lang: bash
+    title: "Login y llamada autenticada con curl"
+    timeLimit: 180
+    prompt: |
+      Escribe dos comandos: el primero hace **login** en `http://localhost:3000/api/auth/login` con JSON
+      (`email`, `password`) y guarda el token en la variable `TOKEN` usando `jq -r .token`; el segundo llama a
+      `GET /api/stats` con el token como **Bearer** y **falla** si el HTTP es ≥ 400.
+    solution: |
+      TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
+        -H 'Content-Type: application/json' \
+        -d '{"email":"ana@test.io","password":"password123"}' | jq -r .token)
+
+      curl -fsS http://localhost:3000/api/stats -H "Authorization: Bearer $TOKEN"
+    checks:
+      - pattern: 'TOKEN\s*=\s*\$\(\s*curl'
+        hint: "Guarda la salida en `TOKEN=$(curl ...)`"
+      - pattern: '(-X\s+POST|--json|-d\s|--data)'
+        hint: "El login es un POST con cuerpo"
+      - pattern: 'Content-Type:\s*application/json|--json'
+        hint: "Envía `Content-Type: application/json` (o usa --json)"
+      - pattern: '/api/auth/login'
+        hint: "Llama a /api/auth/login"
+      - pattern: 'jq\s+-r\s+[''"]?\.token'
+        hint: "Extrae el token con `jq -r .token`"
+      - pattern: 'Authorization:\s*Bearer\s+\$\{?TOKEN'
+        hint: "Cabecera `Authorization: Bearer $TOKEN`"
+      - pattern: 'curl\s+[^\n]*(-f|--fail)'
+        hint: "Usa -f / --fail en la segunda llamada"
+  - id: d2
+    lang: bash
+    title: "Token con client credentials (Entra ID)"
+    timeLimit: 180
+    prompt: |
+      Pide un access token a `https://login.microsoftonline.com/$TENANT/oauth2/v2.0/token` con el flujo
+      **client_credentials**, usando `$CLIENT_ID`, `$CLIENT_SECRET` y el scope `api://pedidos/.default`.
+      Extrae `access_token` con jq.
+    solution: |
+      curl -s -X POST "https://login.microsoftonline.com/$TENANT/oauth2/v2.0/token" \
+        -d grant_type=client_credentials \
+        -d client_id="$CLIENT_ID" \
+        -d client_secret="$CLIENT_SECRET" \
+        -d scope="api://pedidos/.default" | jq -r .access_token
+    checks:
+      - pattern: 'oauth2/v2\.0/token'
+        hint: "Endpoint `/oauth2/v2.0/token`"
+      - pattern: 'grant_type=client_credentials'
+        hint: "`grant_type=client_credentials`"
+      - pattern: 'client_id=\S*\$\{?CLIENT_ID'
+        hint: "`client_id=\"$CLIENT_ID\"`"
+      - pattern: 'client_secret=\S*\$\{?CLIENT_SECRET'
+        hint: "`client_secret=\"$CLIENT_SECRET\"`"
+      - pattern: 'scope=\S*api://pedidos/\.default'
+        hint: "`scope=api://pedidos/.default`"
+      - pattern: 'jq\s+-r\s+[''"]?\.access_token'
+        hint: "Extrae `.access_token`"
+  - id: d3
+    lang: bash
+    title: "Diagnóstico rápido de un endpoint"
+    timeLimit: 120
+    prompt: |
+      Con un solo `curl`, llama a `https://api.ejemplo.com/salud` **siguiendo redirecciones**, **sin imprimir el cuerpo**
+      (envíalo a /dev/null), con un **timeout de 5 s**, y muestra el **código HTTP** y el **tiempo total**.
+    solution: |
+      curl -sS -L -o /dev/null --max-time 5 -w '%{http_code} %{time_total}\n' https://api.ejemplo.com/salud
+    checks:
+      - pattern: '(^|\s)-\w*L|--location'
+        hint: "Sigue redirecciones con -L"
+      - pattern: '-o\s+/dev/null'
+        hint: "Descarta el cuerpo con `-o /dev/null`"
+      - pattern: '--max-time\s+5|-m\s+5'
+        hint: "Timeout con `--max-time 5`"
+      - pattern: '%\{http_code\}'
+        hint: "Imprime `%{http_code}` con -w"
+      - pattern: '%\{time_total\}'
+        hint: "Imprime `%{time_total}` con -w"
+
+snippets:
+  - id: n1
+    title: "Recetas curl de cada día"
+    lang: bash
+    code: |
+      curl -fsS https://api/x | jq .                              # JSON bonito y falla en ≥400
+      curl -sS -o /dev/null -w '%{http_code}\n' https://api/x     # solo el código
+      curl -G --data-urlencode 'q=café con leche' https://api/buscar
+      curl -F 'archivo=@./foto.png' -F 'desc=Perfil' https://api/subir
+      curl -X PUT -H 'If-Match: "v3"' --json @pedido.json https://api/pedidos/42
+      curl --retry 3 --retry-delay 2 --max-time 10 https://api/inestable
+      curl -v https://api/x 2>&1 | grep -i '^< '                  # solo cabeceras de respuesta
+  - id: n2
+    title: "Decodificar un JWT en la terminal"
+    lang: bash
+    code: |
+      jwt_payload() { cut -d. -f2 <<< "$1" | tr '_-' '/+' | base64 -d 2>/dev/null | jq .; }
+      jwt_payload "$TOKEN"
+      # Fecha de expiración legible
+      jwt_payload "$TOKEN" | jq -r '.exp | todate'
+  - id: n3
+    title: "Tokens de API personales en SharpDrill"
+    lang: bash
+    code: |
+      # Crea un token de 30 días (hay que estar logueado)
+      curl -s --json '{"label":"Postman","days":30}' -H "Authorization: Bearer $TOKEN" \
+        http://localhost:3000/api/auth/tokens | jq -r .token
+      # Lista y revoca
+      curl -s -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/auth/tokens | jq .
+      curl -s -X DELETE -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/auth/tokens/3
+  - id: n4
+    title: "Validar un JWT en ASP.NET Core"
+    lang: csharp
+    code: |
+      builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+          .AddJwtBearer(o =>
+          {
+              o.Authority = "https://login.microsoftonline.com/<tenant>/v2.0";
+              o.TokenValidationParameters = new() { ValidateAudience = true, ValidAudience = "api://pedidos" };
+          });
+      builder.Services.AddAuthorizationBuilder()
+          .AddPolicy("LeerPedidos", p => p.RequireClaim("scp", "pedidos.read"));
+
+shortcuts:
+  - tool: "Terminal (bash)"
+    keys: "Ctrl+R"
+    action: "Buscar en el historial de comandos"
+  - tool: "Terminal (bash)"
+    keys: "Ctrl+A / Ctrl+E"
+    action: "Ir al inicio / final de la línea"
+  - tool: "Terminal (bash)"
+    keys: "Ctrl+U / Ctrl+W"
+    action: "Borrar hasta el inicio de la línea / la palabra anterior"
+  - tool: "Terminal (bash)"
+    keys: "Alt+."
+    action: "Insertar el último argumento del comando anterior"
+  - tool: "Terminal (bash)"
+    keys: "!!"
+    action: "Repetir el último comando (p. ej. `sudo !!`)"
+  - tool: "Terminal (bash)"
+    keys: "Ctrl+L"
+    action: "Limpiar la pantalla"
+  - tool: "Chrome DevTools"
+    keys: "Network → clic derecho → Copy as cURL"
+    action: "Copiar una petición del navegador como comando curl"

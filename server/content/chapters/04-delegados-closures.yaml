@@ -2,6 +2,7 @@ id: ch04
 number: 4
 title: "Delegados, eventos y closures"
 level: "Senior"
+track: csharp
 summary: "Cómo funcionan los delegados multicast, el patrón de eventos, las capturas de variables y sus fugas de memoria."
 objectives:
   - "Predecir el resultado de lambdas que capturan variables."
@@ -190,3 +191,68 @@ questions:
     prompt: "Si un manejador de un delegado multicast lanza una excepción, los manejadores restantes se siguen ejecutando."
     answer: false
     explanation: "La excepción interrumpe la invocación. Para aislarlos hay que iterar GetInvocationList() con try/catch por manejador."
+
+drills:
+  - id: d1
+    lang: csharp
+    title: "Evento con el patrón estándar"
+    timeLimit: 180
+    prompt: |
+      En una clase `Termostato`, declara un evento `TemperaturaCambiada` de tipo `EventHandler<double>`
+      y un método `Set(double valor)` que lo dispare de forma segura ante null y entre hilos.
+    solution: |
+      public class Termostato
+      {
+          public event EventHandler<double>? TemperaturaCambiada;
+
+          public void Set(double valor)
+          {
+              TemperaturaCambiada?.Invoke(this, valor);
+          }
+      }
+    checks:
+      - pattern: 'event\s+EventHandler\s*<\s*double\s*>\s*\??\s*TemperaturaCambiada'
+        hint: "`public event EventHandler<double>? TemperaturaCambiada;`"
+      - pattern: 'TemperaturaCambiada\s*\?\.\s*Invoke\s*\(\s*this'
+        hint: "Dispara con `?.Invoke(this, valor)`"
+    explanation: "`?.Invoke` lee el delegado una vez, evitando la carrera entre la comprobación de null y la invocación."
+
+snippets:
+  - id: n1
+    title: "Evitar capturas con static lambda + estado"
+    lang: csharp
+    code: |
+      var valor = cache.GetOrAdd(key,
+          static (k, cfg) => Crear(k, cfg),   // no captura nada
+          config);
+  - id: n2
+    title: "Desuscribirse en Dispose"
+    lang: csharp
+    code: |
+      public sealed class Vista : IDisposable
+      {
+          private readonly Servicio _s;
+          public Vista(Servicio s) { _s = s; _s.Cambio += OnCambio; }
+          private void OnCambio(object? o, EventArgs e) { }
+          public void Dispose() => _s.Cambio -= OnCambio;
+      }
+
+shortcuts:
+  - tool: "Visual Studio"
+    keys: "Ctrl+."
+    action: "Acciones rápidas y refactorizaciones"
+  - tool: "Visual Studio"
+    keys: "Ctrl+R, Ctrl+R"
+    action: "Renombrar"
+  - tool: "Visual Studio"
+    keys: "Ctrl+K, Ctrl+D"
+    action: "Formatear documento"
+  - tool: "Visual Studio"
+    keys: "Ctrl+K, Ctrl+C / Ctrl+K, Ctrl+U"
+    action: "Comentar / descomentar selección"
+  - tool: "Visual Studio"
+    keys: "Alt+↑ / Alt+↓"
+    action: "Mover la línea arriba o abajo"
+  - tool: "Visual Studio"
+    keys: "Ctrl+D"
+    action: "Duplicar línea (VS 2022)"

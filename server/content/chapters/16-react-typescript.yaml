@@ -1,0 +1,472 @@
+id: ch16
+number: 16
+title: "React con TypeScript (TSX)"
+level: "Senior"
+track: react
+summary: "Componentes tipados, estado y renders, efectos sin bugs, memoización, custom hooks, contexto y las novedades de React 19."
+objectives:
+  - "Tipar props, eventos, estado y componentes genéricos en TSX."
+  - "Predecir cuándo y por qué un componente se vuelve a renderizar."
+  - "Escribir efectos sin condiciones de carrera ni closures obsoletas."
+
+sections:
+  - id: s1
+    title: "Componentes y props tipados"
+    body: |
+      Un componente es una **función que recibe props y devuelve JSX**. En TSX se tipan las props con `type` o `interface`:
+
+      ```tsx
+      type BotonProps = {
+        variante?: 'primario' | 'secundario';
+        cargando?: boolean;
+        children: React.ReactNode;
+      } & React.ComponentProps<'button'>;        // hereda onClick, disabled, type...
+
+      export function Boton({ variante = 'primario', cargando = false, children, ...rest }: BotonProps) {
+        return (
+          <button className={`btn btn-${variante}`} disabled={cargando || rest.disabled} {...rest}>
+            {cargando ? 'Cargando…' : children}
+          </button>
+        );
+      }
+      ```
+
+      - `React.ReactNode` para cualquier cosa renderizable; `React.ReactElement` si exiges un elemento.
+      - Eventos: `React.ChangeEvent<HTMLInputElement>`, `React.FormEvent<HTMLFormElement>`, `React.MouseEvent<HTMLButtonElement>`.
+      - `React.FC` ya no es necesario; tipar las props en el parámetro es lo más directo.
+      - **Componentes genéricos**:
+
+      ```tsx
+      type ListaProps<T> = { items: T[]; render: (item: T) => React.ReactNode; getKey: (item: T) => string | number };
+      function Lista<T>({ items, render, getKey }: ListaProps<T>) {
+        return <ul>{items.map((it) => <li key={getKey(it)}>{render(it)}</li>)}</ul>;
+      }
+      ```
+
+      **Keys**: deben ser **estables y únicas entre hermanos** (un id). Usar el índice en listas que se reordenan o filtran mezcla el estado entre elementos.
+
+  - id: s2
+    title: "Estado y renders"
+    body: |
+      Un componente se re-renderiza cuando **cambia su estado**, **se re-renderiza su padre** o **cambia un contexto** que consume. Renderizar no es tocar el DOM: React compara (*reconciliación*) y aplica solo las diferencias.
+
+      ```tsx
+      const [count, setCount] = useState(0);
+      const [user, setUser] = useState<User | null>(null);
+
+      function sumarTres() {
+        setCount(count + 1); setCount(count + 1); setCount(count + 1); // → +1: los tres leen el mismo `count`
+        setCount((c) => c + 1); setCount((c) => c + 1);                // → +2: actualizaciones funcionales
+      }
+      ```
+
+      - Las actualizaciones se **agrupan** (*automatic batching*, React 18+) y el nuevo valor solo es visible en el **siguiente render**.
+      - El estado es **inmutable**: `setItems([...items, nuevo])`, `setUser({ ...user, nombre })`. Mutar (`items.push`) no dispara render.
+      - **No guardes en estado lo que puedes calcular**: `const total = items.reduce(...)` en el render, no en un `useEffect` que sincroniza otro estado.
+      - `useRef` guarda un valor mutable que **no** provoca render (ids de timers, el valor anterior, referencias al DOM).
+      - Para estado complejo con transiciones, `useReducer` centraliza la lógica y facilita los tests.
+
+  - id: s3
+    title: "Efectos sin bugs"
+    body: |
+      `useEffect` sincroniza el componente con algo **externo** (red, suscripciones, timers, APIs del navegador). Si no hay nada externo, probablemente no necesitas un efecto.
+
+      ```tsx
+      useEffect(() => {
+        const ctrl = new AbortController();
+        setCargando(true);
+        fetch(`/api/clientes/${id}`, { signal: ctrl.signal })
+          .then((r) => r.json())
+          .then(setCliente)
+          .catch((e) => { if (e.name !== 'AbortError') setError(e); })
+          .finally(() => setCargando(false));
+        return () => ctrl.abort();      // cleanup: evita la carrera si `id` cambia rápido
+      }, [id]);                         // dependencias: todo lo reactivo que se usa dentro
+      ```
+
+      - **Array de dependencias**: omitirlo → corre en cada render; `[]` → solo al montar; `[id]` → cuando cambia `id`.
+      - **Closures obsoletas** (*stale closures*): si omites una dependencia, el efecto ve valores antiguos. Activa la regla `react-hooks/exhaustive-deps`.
+      - En desarrollo, **StrictMode monta, desmonta y vuelve a montar** cada componente para descubrir efectos sin cleanup: verás los efectos dos veces. No es un bug de producción.
+      - **Reglas de los hooks**: solo en el nivel superior de componentes o custom hooks (nunca dentro de if, bucles ni callbacks), y los custom hooks empiezan por `use`.
+      - Para datos de servidor en apps reales, una librería como **TanStack Query** gestiona caché, reintentos y deduplicación mejor que efectos manuales.
+
+  - id: s4
+    title: "Memoización, contexto y React 19"
+    body: |
+      - `useMemo(() => calcular(a, b), [a, b])` cachea un **valor** costoso.
+      - `useCallback(fn, deps)` cachea una **función** (útil al pasarla a hijos memoizados o como dependencia).
+      - `React.memo(Componente)` evita re-renderizar si las props son iguales (comparación superficial).
+      - Memoizar todo no es gratis: mide con el **Profiler de React DevTools**. El **React Compiler** (estable desde 2025) memoiza automáticamente en compilación.
+
+      **Context** evita *prop drilling*, pero **todos los consumidores se re-renderizan** cuando cambia el valor. Memoiza el valor del provider y separa contextos que cambian a ritmos distintos.
+
+      ```tsx
+      const AuthContext = createContext<AuthState | null>(null);
+      export function useAuth() {
+        const ctx = useContext(AuthContext);
+        if (!ctx) throw new Error('useAuth debe usarse dentro de <AuthProvider>');
+        return ctx;
+      }
+      ```
+
+      **React 19**:
+
+      - `ref` es una prop normal en componentes de función: ya no hace falta `forwardRef`.
+      - **Actions**: funciones async en `<form action={...}>`, con `useActionState` (estado + pending) y `useFormStatus`.
+      - `useOptimistic` para UI optimista mientras la acción termina.
+      - `use(promesa)` / `use(contexto)` lee recursos durante el render (con Suspense).
+
+cards:
+  - id: c1
+    front: "¿Cuándo se re-renderiza un componente de React?"
+    back: "Cuando cambia su estado, cuando se re-renderiza su padre o cuando cambia un contexto que consume. (Que cambien sus props no basta por sí solo si el padre no se renderiza.)"
+  - id: c2
+    front: "¿Por qué `setCount(count + 1)` tres veces seguidas suma solo 1?"
+    back: "Las tres leen el mismo `count` del render actual. Para encadenar, usa la forma funcional `setCount(c => c + 1)`."
+  - id: c3
+    front: "¿Por qué no usar el índice como key en una lista reordenable?"
+    back: "React asocia el estado y el DOM a la key; si el orden cambia, el estado se queda en la posición equivocada (inputs con valores cruzados, animaciones raras)."
+  - id: c4
+    front: "¿Para qué sirve la función de cleanup de useEffect?"
+    back: "Deshacer lo que hizo el efecto (abortar fetch, limpiar timers, desuscribirse) antes del siguiente efecto o al desmontar. Evita fugas y condiciones de carrera."
+  - id: c5
+    front: "¿Por qué los efectos se ejecutan dos veces en desarrollo?"
+    back: "StrictMode monta, desmonta y vuelve a montar el componente para detectar efectos sin cleanup. Solo ocurre en desarrollo."
+  - id: c6
+    front: "Diferencia entre useMemo y useCallback."
+    back: "useMemo cachea el resultado de una función; useCallback cachea la propia función. `useCallback(fn, d)` ≡ `useMemo(() => fn, d)`."
+  - id: c7
+    front: "¿Qué cambió con `ref` en React 19?"
+    back: "Los componentes de función reciben `ref` como una prop normal; `forwardRef` ya no es necesario."
+  - id: c8
+    front: "Problema de rendimiento típico de Context."
+    back: "Todos los consumidores se re-renderizan cuando cambia el valor; un objeto nuevo en cada render del provider re-renderiza todo. Memoiza el valor y separa contextos."
+  - id: c9
+    front: "Tipo del evento en `onChange` de un `<input>` en TSX."
+    back: "`React.ChangeEvent<HTMLInputElement>`; el valor está en `e.target.value` (string)."
+
+questions:
+  - id: q1
+    type: mcq
+    tag: "¿Qué muestra?"
+    prompt: "Tras un clic, ¿qué valor muestra `count` si empezaba en 0?"
+    lang: tsx
+    code: |
+      function Contador() {
+        const [count, setCount] = useState(0);
+        const onClick = () => {
+          setCount(count + 1);
+          setCount(count + 1);
+          setCount((c) => c + 1);
+        };
+        return <button onClick={onClick}>{count}</button>;
+      }
+    options: ["1", "2", "3", "0"]
+    answer: 1
+    explanation: "Las dos primeras programan 0+1 = 1; la funcional recibe el valor pendiente (1) y suma 1 → 2."
+  - id: q2
+    type: tf
+    prompt: "Hacer `items.push(nuevo); setItems(items);` provoca un re-render con el nuevo elemento."
+    answer: false
+    explanation: "La referencia del array no cambia, así que React considera que el estado es el mismo (Object.is) y no re-renderiza. Crea un array nuevo."
+  - id: q3
+    type: mcq
+    tag: "Code review"
+    prompt: "¿Qué bug tiene este efecto?"
+    lang: tsx
+    code: |
+      useEffect(() => {
+        fetch(`/api/usuarios/${id}`).then((r) => r.json()).then(setUsuario);
+      }, []);
+    options:
+      - "Ninguno"
+      - "Falta `id` en las dependencias: no vuelve a cargar al cambiar y además hay carrera sin cleanup"
+      - "fetch no puede usarse en efectos"
+      - "Debe ser useLayoutEffect"
+    answer: 1
+    explanation: "Con [] solo corre al montar. Añade [id] y aborta la petición anterior en el cleanup con AbortController."
+  - id: q4
+    type: mcq
+    prompt: "¿Dónde NO se puede llamar a un hook?"
+    options: ["En el cuerpo de un componente", "En un custom hook", "Dentro de un if", "En el nivel superior de un custom hook"]
+    answer: 2
+    explanation: "Los hooks dependen del orden de llamada; llamarlos condicionalmente rompe la correspondencia entre renders."
+  - id: q5
+    type: fill
+    prompt: "Completa el tipo: `const onChange = (e: React.______<HTMLInputElement>) => setNombre(e.target.value);`"
+    answer: ["ChangeEvent"]
+    explanation: "React.ChangeEvent<HTMLInputElement> tipa el evento de cambio de un input."
+  - id: q6
+    type: mcq
+    prompt: "Necesitas mostrar el total del carrito calculado a partir de `items`. ¿Qué es lo correcto?"
+    options:
+      - "useState(total) + useEffect que lo recalcula cuando cambian items"
+      - "Calcularlo en el render: const total = items.reduce(...)"
+      - "Guardarlo en un ref"
+      - "Calcularlo en el servidor siempre"
+    answer: 1
+    explanation: "El estado derivado se calcula durante el render; duplicarlo en estado añade un render extra y riesgo de desincronización. useMemo si es caro."
+  - id: q7
+    type: tf
+    prompt: "Modificar `ref.current` provoca un re-render del componente."
+    answer: false
+    explanation: "Los refs son contenedores mutables que React no observa."
+  - id: q8
+    type: mcq
+    prompt: "En React 19, ¿qué hook da el estado y el indicador `isPending` de una acción de formulario?"
+    options: ["useTransition", "useActionState", "useOptimistic", "useFormState"]
+    answer: 1
+    explanation: "useActionState(action, initialState) devuelve [state, dispatch/formAction, isPending]. useFormState fue su nombre previo en canary."
+
+drills:
+  - id: d1
+    lang: tsx
+    title: "Input controlado y tipado"
+    timeLimit: 180
+    prompt: |
+      Escribe un componente `Buscador` con props tipadas `{ onBuscar: (texto: string) => void }` que tenga un
+      **input controlado** y un `<form>` que, al enviarse, llame a `onBuscar` con el texto sin recargar la página.
+    starter: |
+      import { useState } from 'react';
+
+      export function Buscador() {
+        return null;
+      }
+    solution: |
+      import { useState } from 'react';
+
+      type Props = { onBuscar: (texto: string) => void };
+
+      export function Buscador({ onBuscar }: Props) {
+        const [texto, setTexto] = useState('');
+
+        const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+          e.preventDefault();
+          onBuscar(texto);
+        };
+
+        return (
+          <form onSubmit={onSubmit}>
+            <input value={texto} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTexto(e.target.value)} />
+            <button type="submit">Buscar</button>
+          </form>
+        );
+      }
+    checks:
+      - pattern: 'onBuscar\s*:\s*\(\s*\w+\s*:\s*string\s*\)\s*=>\s*void'
+        hint: "Tipa la prop `onBuscar: (texto: string) => void`"
+      - pattern: 'useState(<string>)?\s*\(\s*''''\s*\)|useState(<string>)?\s*\(\s*""\s*\)'
+        hint: "Estado inicial de texto vacío con useState('')"
+      - pattern: 'value=\{\s*\w+\s*\}'
+        hint: "Input controlado: `value={texto}`"
+      - pattern: 'onChange=\{'
+        hint: "Actualiza el estado en `onChange`"
+      - pattern: '\.preventDefault\s*\(\s*\)'
+        hint: "Evita la recarga con `e.preventDefault()`"
+      - pattern: 'onSubmit=\{'
+        hint: "Maneja el envío en `<form onSubmit>`"
+  - id: d2
+    lang: tsx
+    title: "Fetch en useEffect con AbortController"
+    timeLimit: 240
+    prompt: |
+      Escribe un hook `useCliente(id: number)` que cargue `/api/clientes/{id}` con `fetch`, guarde el resultado tipado
+      `Cliente | null` y **aborte la petición anterior** cuando cambie `id` o se desmonte el componente.
+    solution: |
+      import { useEffect, useState } from 'react';
+
+      type Cliente = { id: number; nombre: string };
+
+      export function useCliente(id: number) {
+        const [cliente, setCliente] = useState<Cliente | null>(null);
+
+        useEffect(() => {
+          const ctrl = new AbortController();
+          fetch(`/api/clientes/${id}`, { signal: ctrl.signal })
+            .then((r) => r.json())
+            .then((data: Cliente) => setCliente(data))
+            .catch((e) => { if (e.name !== 'AbortError') console.error(e); });
+          return () => ctrl.abort();
+        }, [id]);
+
+        return cliente;
+      }
+    checks:
+      - pattern: 'function\s+useCliente\s*\(\s*id\s*:\s*number\s*\)|const\s+useCliente\s*=\s*\(\s*id\s*:\s*number'
+        hint: "Custom hook `useCliente(id: number)`"
+      - pattern: 'useState\s*<\s*Cliente\s*\|\s*null\s*>'
+        hint: "Estado tipado `useState<Cliente | null>(null)`"
+      - pattern: 'new\s+AbortController\s*\(\s*\)'
+        hint: "Crea un `AbortController`"
+      - pattern: 'signal\s*:\s*\w+\.signal'
+        hint: "Pasa `signal: ctrl.signal` a fetch"
+      - pattern: 'return\s*\(\s*\)\s*=>\s*\{?\s*\w+\.abort\s*\(\s*\)'
+        hint: "Cleanup `return () => ctrl.abort()`"
+      - pattern: '\}\s*,\s*\[\s*id\s*\]\s*\)'
+        hint: "Dependencias `[id]`"
+  - id: d3
+    lang: tsx
+    title: "Custom hook useDebounce genérico"
+    timeLimit: 180
+    prompt: |
+      Implementa `useDebounce<T>(valor: T, ms: number): T` que devuelva el valor solo cuando deje de cambiar durante `ms`
+      milisegundos (limpia el timer anterior).
+    solution: |
+      import { useEffect, useState } from 'react';
+
+      export function useDebounce<T>(valor: T, ms: number): T {
+        const [debounced, setDebounced] = useState(valor);
+
+        useEffect(() => {
+          const t = setTimeout(() => setDebounced(valor), ms);
+          return () => clearTimeout(t);
+        }, [valor, ms]);
+
+        return debounced;
+      }
+    checks:
+      - pattern: 'function\s+useDebounce\s*<\s*T\s*>'
+        hint: "Firma genérica `function useDebounce<T>(...)`"
+      - pattern: '\)\s*:\s*T\s*\{'
+        hint: "Tipo de retorno `: T`"
+      - pattern: 'setTimeout\s*\('
+        hint: "Programa la actualización con `setTimeout`"
+      - pattern: 'return\s*\(\s*\)\s*=>\s*\{?\s*clearTimeout'
+        hint: "Limpia en el cleanup con `clearTimeout`"
+      - pattern: '\[\s*valor\s*,\s*ms\s*\]|\[\s*ms\s*,\s*valor\s*\]'
+        hint: "Dependencias `[valor, ms]`"
+  - id: d4
+    lang: tsx
+    title: "Lista con keys estables y actualización inmutable"
+    timeLimit: 180
+    prompt: |
+      Componente `Tareas` con estado `Tarea[]` (`{ id: string; texto: string; hecha: boolean }`) que renderice la lista
+      con **key = id** y un botón por tarea que la marque como hecha **sin mutar** el array.
+    solution: |
+      import { useState } from 'react';
+
+      type Tarea = { id: string; texto: string; hecha: boolean };
+
+      export function Tareas({ iniciales }: { iniciales: Tarea[] }) {
+        const [tareas, setTareas] = useState<Tarea[]>(iniciales);
+
+        const completar = (id: string) =>
+          setTareas((prev) => prev.map((t) => (t.id === id ? { ...t, hecha: true } : t)));
+
+        return (
+          <ul>
+            {tareas.map((t) => (
+              <li key={t.id}>
+                {t.texto} <button onClick={() => completar(t.id)}>Hecha</button>
+              </li>
+            ))}
+          </ul>
+        );
+      }
+    checks:
+      - pattern: 'useState\s*<\s*Tarea\[\]\s*>'
+        hint: "Estado tipado `useState<Tarea[]>`"
+      - pattern: 'key=\{\s*\w+\.id\s*\}'
+        hint: "Usa `key={t.id}`"
+      - pattern: '\.map\s*\(\s*\(?\s*\w+\s*\)?\s*=>\s*\(?\s*\w+\.id\s*===\s*\w+'
+        hint: "Actualiza con `prev.map(t => t.id === id ? ... : t)`"
+      - pattern: '\{\s*\.\.\.\w+\s*,\s*hecha\s*:\s*true\s*\}'
+        hint: "Copia inmutable `{ ...t, hecha: true }`"
+      - pattern: '\.push\s*\(|\.hecha\s*=\s*true'
+        hint: "No mutes el estado"
+        forbid: true
+
+snippets:
+  - id: n1
+    title: "Props que extienden un elemento HTML"
+    lang: tsx
+    code: |
+      type InputProps = { label: string; error?: string } & React.ComponentProps<'input'>;
+
+      export function Input({ label, error, id, ...rest }: InputProps) {
+        const autoId = useId();
+        const inputId = id ?? autoId;
+        return (
+          <div>
+            <label htmlFor={inputId}>{label}</label>
+            <input id={inputId} aria-invalid={!!error} {...rest} />
+            {error && <p role="alert">{error}</p>}
+          </div>
+        );
+      }
+  - id: n2
+    title: "useReducer tipado con unión discriminada"
+    lang: tsx
+    code: |
+      type State = { status: 'idle' | 'loading' | 'error'; items: Item[]; error?: string };
+      type Action =
+        | { type: 'load' }
+        | { type: 'loaded'; items: Item[] }
+        | { type: 'failed'; error: string };
+
+      function reducer(s: State, a: Action): State {
+        switch (a.type) {
+          case 'load': return { ...s, status: 'loading' };
+          case 'loaded': return { status: 'idle', items: a.items };
+          case 'failed': return { ...s, status: 'error', error: a.error };
+        }
+      }
+      const [state, dispatch] = useReducer(reducer, { status: 'idle', items: [] });
+  - id: n3
+    title: "Formulario con Actions (React 19)"
+    lang: tsx
+    code: |
+      async function guardar(_prev: string | null, form: FormData) {
+        const r = await fetch('/api/perfil', { method: 'POST', body: form });
+        return r.ok ? null : 'No se pudo guardar';
+      }
+
+      export function Perfil() {
+        const [error, action, isPending] = useActionState(guardar, null);
+        return (
+          <form action={action}>
+            <input name="nombre" />
+            <button disabled={isPending}>{isPending ? 'Guardando…' : 'Guardar'}</button>
+            {error && <p role="alert">{error}</p>}
+          </form>
+        );
+      }
+  - id: n4
+    title: "Crear un proyecto React + TS"
+    lang: bash
+    code: |
+      npm create vite@latest mi-app -- --template react-ts
+      cd mi-app && npm install && npm run dev
+      npx tsc --noEmit            # comprobar tipos sin compilar
+
+shortcuts:
+  - tool: "VS Code"
+    keys: "Ctrl+P"
+    action: "Abrir archivo rápidamente"
+  - tool: "VS Code"
+    keys: "Ctrl+Shift+P"
+    action: "Paleta de comandos"
+  - tool: "VS Code"
+    keys: "F2"
+    action: "Renombrar símbolo en todo el proyecto"
+  - tool: "VS Code"
+    keys: "Ctrl+."
+    action: "Quick fix (p. ej. añadir import que falta)"
+  - tool: "VS Code"
+    keys: "Ctrl+D"
+    action: "Seleccionar la siguiente coincidencia (multicursor)"
+  - tool: "VS Code"
+    keys: "Alt+Click"
+    action: "Añadir un cursor donde hagas clic"
+  - tool: "VS Code"
+    keys: "Alt+↑ / Alt+↓"
+    action: "Mover la línea"
+  - tool: "VS Code"
+    keys: "Shift+Alt+F"
+    action: "Formatear documento"
+  - tool: "VS Code"
+    keys: "Ctrl+`"
+    action: "Mostrar u ocultar la terminal integrada"
+  - tool: "VS Code (Emmet)"
+    keys: "ul>li*3 + Tab"
+    action: "Expandir abreviatura Emmet a JSX/HTML"

@@ -4,7 +4,9 @@
   "description": "Curso de C# para nivel senior con repaso activo (repetición espaciada, flashcards, práctica y exámenes).",
   "type": "module",
   "private": true,
-  "engines": { "node": ">=22.5" },
+  "engines": {
+    "node": ">=22.5"
+  },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning server/src/server.js",
     "dev": "node --disable-warning=ExperimentalWarning --watch server/src/server.js",
@@ -13,6 +15,7 @@
   },
   "dependencies": {
     "express": "^5.1.0",
-    "js-yaml": "^4.1.0"
+    "js-yaml": "^4.1.0",
+    "oracledb": "^6.10.0"
   }
 }

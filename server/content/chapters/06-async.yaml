@@ -2,6 +2,7 @@ id: ch06
 number: 6
 title: "Async/await por dentro"
 level: "Senior"
+track: csharp
 summary: "Máquina de estados, SynchronizationContext, ConfigureAwait, ValueTask, cancelación y antipatrones que causan deadlocks."
 objectives:
   - "Explicar qué genera el compilador para un método async."
@@ -215,3 +216,61 @@ questions:
     prompt: "Un await sobre una lectura de socket pendiente mantiene ocupado un hilo del thread pool mientras espera."
     answer: false
     explanation: "La E/S asíncrona usa completion ports/epoll: ningún hilo queda bloqueado esperando."
+
+drills:
+  - id: d1
+    lang: csharp
+    title: "Llamada HTTP con timeout y cancelación"
+    timeLimit: 240
+    prompt: |
+      Escribe `async Task<string> GetConTimeoutAsync(HttpClient http, string url, CancellationToken ct)`
+      que cancele la petición si tarda más de **5 segundos** o si se cancela `ct` (token enlazado).
+    solution: |
+      public async Task<string> GetConTimeoutAsync(HttpClient http, string url, CancellationToken ct)
+      {
+          using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+          cts.CancelAfter(TimeSpan.FromSeconds(5));
+          return await http.GetStringAsync(url, cts.Token);
+      }
+    checks:
+      - pattern: 'async\s+Task\s*<\s*string\s*>\s+GetConTimeoutAsync'
+        hint: "Firma `async Task<string> GetConTimeoutAsync(...)`"
+      - pattern: 'CreateLinkedTokenSource\s*\(\s*ct\s*\)'
+        hint: "Enlaza el token del llamador con `CreateLinkedTokenSource(ct)`"
+      - pattern: 'using\s+(var\s+\w+\s*=|\()'
+        hint: "Libera el CancellationTokenSource con `using`"
+      - pattern: 'CancelAfter\s*\(\s*TimeSpan\.FromSeconds\s*\(\s*5\s*\)|CancelAfter\s*\(\s*5000\s*\)'
+        hint: "`CancelAfter(TimeSpan.FromSeconds(5))`"
+      - pattern: 'await\s+\w+\.Get\w*Async\s*\([^)]*\.Token\s*\)'
+        hint: "Pasa `cts.Token` a la llamada HTTP"
+    explanation: "El token enlazado se cancela si cancela el llamador o si vence el tiempo; hay que liberarlo para quitar el temporizador."
+
+snippets:
+  - id: n1
+    title: "Ejecutar en paralelo y recoger todas las excepciones"
+    lang: csharp
+    code: |
+      var tareas = new[] { GetUserAsync(id, ct), GetOrdersAsync(id, ct) };
+      var todo = Task.WhenAll(tareas);
+      try { await todo; }
+      catch { foreach (var e in todo.Exception!.InnerExceptions) log.LogError(e, "Fallo"); throw; }
+  - id: n2
+    title: "Adaptar un callback a Task"
+    lang: csharp
+    code: |
+      var tcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+      legacy.OnDone += r => tcs.TrySetResult(r);
+      legacy.OnError += e => tcs.TrySetException(e);
+      using var reg = ct.Register(() => tcs.TrySetCanceled(ct));
+      return await tcs.Task;
+  - id: n3
+    title: "await foreach con cancelación"
+    lang: csharp
+    code: |
+      await foreach (var item in repo.StreamAsync().WithCancellation(ct).ConfigureAwait(false))
+          Procesar(item);
+
+shortcuts:
+  - tool: "Visual Studio"
+    keys: "Ctrl+Alt+P"
+    action: "Adjuntar a un proceso para depurar"

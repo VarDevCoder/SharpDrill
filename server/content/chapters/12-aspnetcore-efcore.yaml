@@ -2,6 +2,7 @@ id: ch12
 number: 12
 title: "ASP.NET Core y EF Core en producción"
 level: "Senior"
+track: csharp
 summary: "Pipeline de middleware, minimal APIs, HttpClientFactory, resiliencia, EF Core: tracking, N+1, consultas eficientes y concurrencia optimista."
 objectives:
   - "Ordenar correctamente el pipeline de middleware."
@@ -185,3 +186,69 @@ questions:
     options: ["Reintentos con backoff", "Circuit breaker", "Timeout por intento", "Caché distribuida de respuestas"]
     answer: 3
     explanation: "El pipeline estándar incluye rate limiter, timeout total, retry, circuit breaker y timeout por intento; no cachea respuestas."
+
+drills:
+  - id: d1
+    lang: csharp
+    title: "Endpoint GET por id con Minimal API + EF Core"
+    timeLimit: 240
+    prompt: |
+      Escribe un endpoint `GET /api/pedidos/{id:int}` con Minimal APIs que lea el pedido con EF Core
+      **sin tracking**, proyecte a `PedidoDto(Id, Total)` y devuelva **404** si no existe.
+      Recibe `AppDbContext db` y un `CancellationToken`.
+    solution: |
+      app.MapGet("/api/pedidos/{id:int}", async (int id, AppDbContext db, CancellationToken ct) =>
+      {
+          var dto = await db.Pedidos
+              .AsNoTracking()
+              .Where(p => p.Id == id)
+              .Select(p => new PedidoDto(p.Id, p.Total))
+              .FirstOrDefaultAsync(ct);
+          return dto is null ? Results.NotFound() : Results.Ok(dto);
+      });
+    checks:
+      - pattern: 'MapGet\s*\(\s*"/api/pedidos/\{id(:int)?\}"'
+        hint: "`app.MapGet(\"/api/pedidos/{id:int}\", ...)`"
+      - pattern: '\.AsNoTracking\s*\(\s*\)'
+        hint: "Lectura sin tracking: `.AsNoTracking()`"
+      - pattern: '\.Select\s*\(\s*\w+\s*=>\s*new\s+PedidoDto'
+        hint: "Proyecta a `PedidoDto` con `Select`"
+      - pattern: '(FirstOrDefault|SingleOrDefault)Async\s*\(\s*ct\s*\)|FindAsync'
+        hint: "Usa `FirstOrDefaultAsync(ct)` pasando el token"
+      - pattern: '(Typed)?Results\.NotFound\s*\('
+        hint: "Devuelve `Results.NotFound()` si no existe"
+    explanation: "Proyectar a DTO trae solo las columnas necesarias y no rastrea entidades; pasar el token cancela la consulta si el cliente se desconecta."
+
+snippets:
+  - id: n1
+    title: "dotnet CLI imprescindible"
+    lang: bash
+    code: |
+      dotnet new webapi -n Api --use-minimal-apis
+      dotnet add package Microsoft.EntityFrameworkCore.SqlServer
+      dotnet ef migrations add Inicial
+      dotnet ef migrations script --idempotent -o migrate.sql
+      dotnet watch run
+      dotnet test --filter "Category=Integration"
+      dotnet user-secrets set "ConnectionStrings:Db" "..."
+  - id: n2
+    title: "HttpClient tipado con resiliencia"
+    lang: csharp
+    code: |
+      builder.Services.AddHttpClient<CatalogoClient>(c =>
+      {
+          c.BaseAddress = new Uri(builder.Configuration["Catalogo:Url"]!);
+          c.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Key", builder.Configuration["Catalogo:Key"]);
+      })
+      .AddStandardResilienceHandler();
+  - id: n3
+    title: "Concurrencia optimista"
+    lang: csharp
+    code: |
+      try { await db.SaveChangesAsync(ct); }
+      catch (DbUpdateConcurrencyException ex)
+      {
+          var entry = ex.Entries.Single();
+          var actuales = await entry.GetDatabaseValuesAsync(ct);   // null si se borró
+          return Results.Conflict(new { mensaje = "Otro usuario modificó el registro" });
+      }

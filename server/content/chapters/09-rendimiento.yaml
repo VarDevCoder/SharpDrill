@@ -2,6 +2,7 @@ id: ch09
 number: 9
 title: "Alto rendimiento: Span, memoria y medición"
 level: "Senior"
+track: csharp
 summary: "Span<T>, Memory<T>, ref struct, stackalloc, ArrayPool, strings sin asignaciones, devirtualización y BenchmarkDotNet."
 objectives:
   - "Reducir asignaciones en rutas calientes con Span<T> y pools."
@@ -180,3 +181,57 @@ questions:
     options: ["Native AOT", "Dynamic PGO", "ReadyToRun", "Interpretación"]
     answer: 1
     explanation: "Dynamic Profile-Guided Optimization instrumenta Tier 0 y recompila métodos calientes con información real (p. ej. devirtualización guardada)."
+
+drills:
+  - id: d1
+    lang: csharp
+    title: "Parsear sin asignaciones con Span"
+    timeLimit: 180
+    prompt: |
+      Escribe `int UltimoCampo(string linea)` que devuelva como entero el texto tras el **último `;`**
+      sin usar `Split` ni `Substring` (usa `ReadOnlySpan<char>`).
+    solution: |
+      int UltimoCampo(string linea)
+      {
+          ReadOnlySpan<char> span = linea.AsSpan();
+          int i = span.LastIndexOf(';');
+          return int.Parse(span[(i + 1)..]);
+      }
+    checks:
+      - pattern: 'AsSpan\s*\('
+        hint: "Convierte con `AsSpan()`"
+      - pattern: 'LastIndexOf\s*\(\s*'';'''
+        hint: "Busca el separador con `LastIndexOf(';')`"
+      - pattern: 'int\.Parse\s*\('
+        hint: "Parsea con `int.Parse(span)`"
+      - pattern: '\.(Split|Substring)\s*\('
+        hint: "No uses Split ni Substring"
+        forbid: true
+    explanation: "Un slice de ReadOnlySpan<char> apunta a los mismos caracteres: cero asignaciones."
+
+snippets:
+  - id: n1
+    title: "Benchmark mínimo"
+    lang: csharp
+    code: |
+      // dotnet add package BenchmarkDotNet  ·  dotnet run -c Release
+      [MemoryDiagnoser]
+      public class Bench
+      {
+          [Benchmark(Baseline = true)] public int A() => Impl.A();
+          [Benchmark] public int B() => Impl.B();
+      }
+      BenchmarkRunner.Run<Bench>();
+  - id: n2
+    title: "Buffer en stack o en pool"
+    lang: csharp
+    code: |
+      byte[]? rented = null;
+      Span<byte> buf = n <= 256 ? stackalloc byte[256] : (rented = ArrayPool<byte>.Shared.Rent(n));
+      try { buf = buf[..n]; /* usar */ }
+      finally { if (rented is not null) ArrayPool<byte>.Shared.Return(rented); }
+
+shortcuts:
+  - tool: "Visual Studio"
+    keys: "Alt+F2"
+    action: "Perfilador de rendimiento (Performance Profiler)"

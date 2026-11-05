@@ -1,0 +1,438 @@
+id: ch14
+number: 14
+title: "PL/SQL esencial"
+level: "Senior"
+track: db
+summary: "Bloques, tipos anclados, cursores, manejo de excepciones profesional, procedimientos, funciones y paquetes."
+objectives:
+  - "Escribir procedimientos y funciones robustos con tipos anclados (%TYPE, %ROWTYPE)."
+  - "Manejar excepciones sin ocultar errores y conservando la línea de origen."
+  - "Diseñar paquetes con API pública mínima y entender su estado por sesión."
+
+sections:
+  - id: s1
+    title: "Bloques, tipos anclados y SELECT INTO"
+    body: |
+      Todo en PL/SQL es un **bloque**: `DECLARE` (opcional) · `BEGIN` · `EXCEPTION` (opcional) · `END;`
+
+      ```sql
+      DECLARE
+        l_nombre  empleados.nombre%TYPE;      -- se adapta si cambia la columna
+        l_emp     empleados%ROWTYPE;          -- registro con todas las columnas
+        c_iva     CONSTANT NUMBER := 0.21;
+      BEGIN
+        SELECT * INTO l_emp FROM empleados WHERE id = 100;
+        DBMS_OUTPUT.PUT_LINE(l_emp.nombre || ' cobra ' || l_emp.salario * (1 + c_iva));
+      END;
+      /
+      ```
+
+      `SELECT ... INTO` exige **exactamente una fila**:
+
+      - 0 filas → `NO_DATA_FOUND` (ORA-01403)
+      - más de 1 → `TOO_MANY_ROWS` (ORA-01422)
+
+      Tras un DML, los **atributos del cursor implícito** informan del resultado: `SQL%ROWCOUNT`, `SQL%FOUND`, `SQL%NOTFOUND`.
+
+      ```sql
+      UPDATE empleados SET salario = salario * 1.05 WHERE departamento_id = :d;
+      DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' filas actualizadas');
+      ```
+
+      Convención de nombres útil: `l_` locales, `p_` parámetros, `g_` globales de paquete, `c_` constantes. Evita que un parámetro se llame igual que una columna: `WHERE id = id` es siempre verdadero.
+
+  - id: s2
+    title: "Cursores"
+    body: |
+      **Cursor FOR loop**: abre, recorre y cierra automáticamente. Desde 10g, con `PLSQL_OPTIMIZE_LEVEL >= 2`, se optimiza internamente para leer de 100 en 100 filas.
+
+      ```sql
+      BEGIN
+        FOR r IN (SELECT id, nombre FROM clientes WHERE activo = 1) LOOP
+          DBMS_OUTPUT.PUT_LINE(r.id || ' - ' || r.nombre);
+        END LOOP;
+      END;
+      ```
+
+      **Cursor explícito con parámetros** cuando necesitas reutilizarlo o controlar el FETCH:
+
+      ```sql
+      DECLARE
+        CURSOR c_pedidos (p_cliente NUMBER) IS
+          SELECT id, total FROM pedidos WHERE cliente_id = p_cliente;
+        r c_pedidos%ROWTYPE;
+      BEGIN
+        OPEN c_pedidos(42);
+        LOOP
+          FETCH c_pedidos INTO r;
+          EXIT WHEN c_pedidos%NOTFOUND;
+          -- procesar r
+        END LOOP;
+        CLOSE c_pedidos;
+      END;
+      ```
+
+      Regla de oro: **si puedes hacerlo en una sola sentencia SQL, hazlo en SQL**. Un bucle fila a fila con un UPDATE dentro (*slow-by-slow*) es órdenes de magnitud más lento que un `UPDATE ... WHERE` o un `MERGE`.
+
+  - id: s3
+    title: "Excepciones de forma profesional"
+    body: |
+      ```sql
+      CREATE OR REPLACE PROCEDURE transferir (
+        p_origen  IN cuentas.id%TYPE,
+        p_destino IN cuentas.id%TYPE,
+        p_importe IN NUMBER
+      ) IS
+        e_fk_violada EXCEPTION;
+        PRAGMA EXCEPTION_INIT(e_fk_violada, -2291);     -- da nombre a un ORA- sin nombre
+        l_saldo cuentas.saldo%TYPE;
+      BEGIN
+        SELECT saldo INTO l_saldo FROM cuentas WHERE id = p_origen FOR UPDATE;
+        IF l_saldo < p_importe THEN
+          RAISE_APPLICATION_ERROR(-20010, 'Saldo insuficiente en la cuenta ' || p_origen);
+        END IF;
+        UPDATE cuentas SET saldo = saldo - p_importe WHERE id = p_origen;
+        UPDATE cuentas SET saldo = saldo + p_importe WHERE id = p_destino;
+      EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+          RAISE_APPLICATION_ERROR(-20011, 'La cuenta ' || p_origen || ' no existe');
+        WHEN OTHERS THEN
+          log_error(SQLCODE, SQLERRM, DBMS_UTILITY.FORMAT_ERROR_BACKTRACE);
+          RAISE;                                         -- ¡nunca tragarse el error!
+      END transferir;
+      /
+      ```
+
+      - `RAISE_APPLICATION_ERROR(n, msg)` con `n` entre **-20000 y -20999** para errores de negocio.
+      - `WHEN OTHERS` **sin `RAISE`** oculta errores (el compilador avisa con PLW-06009). Úsalo solo para registrar y relanzar.
+      - `SQLERRM` da el mensaje; `DBMS_UTILITY.FORMAT_ERROR_BACKTRACE` da la **línea donde ocurrió** (SQLERRM no la incluye).
+      - Si una excepción no controlada sale de un bloque, Oracle revierte **solo la sentencia** que falló (rollback a nivel de sentencia), no la transacción completa: el llamador decide.
+
+  - id: s4
+    title: "Procedimientos, funciones y paquetes"
+    body: |
+      Modos de parámetro: `IN` (por defecto, solo lectura), `OUT` (se asigna en el método), `IN OUT`. `NOCOPY` pide pasar colecciones grandes por referencia.
+
+      Las **funciones** devuelven un valor y pueden usarse en SQL si no hacen DML (si lo hacen: ORA-14551). Marca como `DETERMINISTIC` las que, para la misma entrada, siempre devuelven lo mismo.
+
+      Un **paquete** separa la **especificación** (API pública) del **cuerpo** (implementación y elementos privados):
+
+      ```sql
+      CREATE OR REPLACE PACKAGE pkg_pedidos AS
+        FUNCTION total (p_pedido_id IN pedidos.id%TYPE) RETURN NUMBER;
+        PROCEDURE cerrar (p_pedido_id IN pedidos.id%TYPE);
+      END pkg_pedidos;
+      /
+      CREATE OR REPLACE PACKAGE BODY pkg_pedidos AS
+        g_iva CONSTANT NUMBER := 0.21;                     -- privado
+
+        FUNCTION total (p_pedido_id IN pedidos.id%TYPE) RETURN NUMBER IS
+          l_total NUMBER;
+        BEGIN
+          SELECT SUM(cantidad * precio) INTO l_total FROM lineas WHERE pedido_id = p_pedido_id;
+          RETURN NVL(l_total, 0) * (1 + g_iva);
+        END total;
+
+        PROCEDURE cerrar (p_pedido_id IN pedidos.id%TYPE) IS
+        BEGIN
+          UPDATE pedidos SET estado = 'CERRADO' WHERE id = p_pedido_id;
+        END cerrar;
+      END pkg_pedidos;
+      /
+      ```
+
+      Ventajas: encapsulación, dependencias más estables (cambiar el cuerpo no invalida a quien llama), carga en memoria de una vez. Las variables de paquete tienen **estado por sesión**: al recompilar un paquete con estado, las sesiones abiertas reciben **ORA-04068** (*existing state of packages has been discarded*). Ojo con los pools de conexiones.
+
+      **Regla de transacciones**: los procedimientos de negocio normalmente **no hacen COMMIT**; lo decide la capa que orquesta la transacción.
+
+cards:
+  - id: c1
+    front: "¿Qué excepciones puede lanzar `SELECT ... INTO`?"
+    back: "`NO_DATA_FOUND` si no hay filas y `TOO_MANY_ROWS` si hay más de una."
+  - id: c2
+    front: "Ventaja de `%TYPE` y `%ROWTYPE`."
+    back: "Anclan el tipo a la columna/tabla: si cambia la definición, el código se adapta al recompilar sin tocarlo."
+  - id: c3
+    front: "¿Qué informa `SQL%ROWCOUNT`?"
+    back: "El número de filas afectadas por el último DML (o devueltas por el último SELECT INTO) del cursor implícito."
+  - id: c4
+    front: "¿Qué rango de códigos usa RAISE_APPLICATION_ERROR?"
+    back: "De **-20000 a -20999**."
+  - id: c5
+    front: "¿Cómo obtengo la línea exacta donde se produjo un error?"
+    back: "`DBMS_UTILITY.FORMAT_ERROR_BACKTRACE` (SQLERRM solo da el mensaje)."
+  - id: c6
+    front: "¿Para qué sirve `PRAGMA EXCEPTION_INIT`?"
+    back: "Asocia un nombre de excepción propio a un código ORA- concreto, para capturarlo con `WHEN mi_excepcion`."
+  - id: c7
+    front: "¿Qué es ORA-04068?"
+    back: "*Existing state of packages has been discarded*: un paquete con variables globales se recompiló mientras la sesión tenía estado de él."
+  - id: c8
+    front: "¿Por qué no hacer COMMIT dentro de procedimientos de negocio?"
+    back: "Rompe la atomicidad del llamador: no podría combinar varias operaciones en una transacción ni revertirlas juntas."
+  - id: c9
+    front: "¿Qué pasa con la transacción si una excepción no controlada sale de un procedimiento?"
+    back: "Oracle revierte solo la sentencia que falló (rollback a nivel de sentencia); el trabajo anterior sigue pendiente y el llamador decide si confirma o revierte."
+
+questions:
+  - id: q1
+    type: mcq
+    prompt: "¿Qué ocurre si `SELECT salario INTO l_sal FROM empleados WHERE departamento_id = 10` encuentra 5 filas?"
+    options: ["Toma la primera", "NO_DATA_FOUND", "TOO_MANY_ROWS", "Asigna NULL"]
+    answer: 2
+    explanation: "SELECT INTO requiere exactamente una fila: con varias lanza TOO_MANY_ROWS (ORA-01422)."
+  - id: q2
+    type: mcq
+    tag: "Code review"
+    prompt: "¿Qué problema tiene este bloque?"
+    lang: plsql
+    code: |
+      BEGIN
+        UPDATE pedidos SET estado = 'ENVIADO' WHERE id = p_id;
+      EXCEPTION
+        WHEN OTHERS THEN
+          NULL;
+      END;
+    options:
+      - "Ninguno, es defensivo"
+      - "Oculta cualquier error: el llamador cree que todo fue bien"
+      - "No compila"
+      - "Hace COMMIT implícito"
+    answer: 1
+    explanation: "WHEN OTHERS THEN NULL traga todos los errores. Registra y relanza con RAISE."
+  - id: q3
+    type: tf
+    prompt: "Una función PL/SQL que hace un INSERT puede llamarse sin problemas desde un SELECT."
+    answer: false
+    explanation: "Lanza ORA-14551 (no se puede hacer DML dentro de una consulta), salvo que sea una transacción autónoma."
+  - id: q4
+    type: fill
+    prompt: "Completa: para lanzar un error de negocio con código propio se usa `______(-20001, 'mensaje')`."
+    answer: ["RAISE_APPLICATION_ERROR"]
+    explanation: "Admite códigos de -20000 a -20999 y un mensaje de hasta 2048 bytes."
+  - id: q5
+    type: mcq
+    tag: "Code review"
+    prompt: "¿Por qué este UPDATE modifica TODOS los empleados?"
+    lang: plsql
+    code: |
+      CREATE OR REPLACE PROCEDURE subir (id IN NUMBER) IS
+      BEGIN
+        UPDATE empleados SET salario = salario * 1.1 WHERE id = id;
+      END;
+    options:
+      - "Porque falta COMMIT"
+      - "Porque `id = id` compara la columna consigo misma: el SQL resuelve primero el nombre de columna"
+      - "Porque NUMBER no se puede comparar"
+      - "Porque los procedimientos no admiten WHERE"
+    answer: 1
+    explanation: "Dentro del SQL, `id` se resuelve como la columna. Nombra los parámetros con prefijo (p_id) o cualifícalos (subir.id)."
+  - id: q6
+    type: mcq
+    prompt: "¿Qué ventaja tiene separar especificación y cuerpo de un paquete?"
+    options:
+      - "Que el código es más rápido siempre"
+      - "Cambiar el cuerpo no invalida a los objetos que dependen solo de la especificación"
+      - "Que no hace falta compilar"
+      - "Que los paquetes no tienen estado"
+    answer: 1
+    explanation: "Las dependencias apuntan a la especificación; recompilar el cuerpo no invalida a los llamadores."
+  - id: q7
+    type: tf
+    prompt: "Un cursor FOR loop sobre una consulta se optimiza internamente para leer filas por lotes (con PLSQL_OPTIMIZE_LEVEL >= 2)."
+    answer: true
+    explanation: "Desde 10g el compilador lo convierte en fetch de 100 filas por vez, reduciendo cambios de contexto."
+  - id: q8
+    type: mcq
+    prompt: "Necesitas subir un 5 % el salario de los 20.000 empleados del departamento 10. ¿Qué es mejor?"
+    options:
+      - "Un cursor FOR con un UPDATE por fila"
+      - "Un único UPDATE empleados SET salario = salario * 1.05 WHERE departamento_id = 10"
+      - "Un trigger"
+      - "Un bucle con COMMIT cada fila"
+    answer: 1
+    explanation: "Una sola sentencia SQL evita 20.000 cambios de contexto PL/SQL↔SQL y es atómica."
+
+drills:
+  - id: d1
+    lang: plsql
+    title: "Procedimiento con validación y error de negocio"
+    timeLimit: 240
+    prompt: |
+      Crea el procedimiento `subir_salario(p_emp_id IN empleados.id%TYPE, p_pct IN NUMBER)` que actualice el salario
+      del empleado en `p_pct` % y lance **-20001** con un mensaje si el empleado no existe.
+    starter: |
+      CREATE OR REPLACE PROCEDURE subir_salario (
+        -- parámetros
+      ) IS
+      BEGIN
+        NULL;
+      END subir_salario;
+      /
+    solution: |
+      CREATE OR REPLACE PROCEDURE subir_salario (
+        p_emp_id IN empleados.id%TYPE,
+        p_pct    IN NUMBER
+      ) IS
+      BEGIN
+        UPDATE empleados
+           SET salario = salario * (1 + p_pct / 100)
+         WHERE id = p_emp_id;
+
+        IF SQL%ROWCOUNT = 0 THEN
+          RAISE_APPLICATION_ERROR(-20001, 'Empleado ' || p_emp_id || ' no existe');
+        END IF;
+      END subir_salario;
+      /
+    checks:
+      - pattern: 'CREATE\s+(OR\s+REPLACE\s+)?PROCEDURE\s+subir_salario'
+        hint: "`CREATE OR REPLACE PROCEDURE subir_salario`"
+      - pattern: 'p_emp_id\s+IN\s+empleados\.id%TYPE'
+        hint: "Ancla el tipo: `p_emp_id IN empleados.id%TYPE`"
+      - pattern: 'UPDATE\s+empleados\s+SET\s+salario'
+        hint: "Actualiza con un único UPDATE"
+      - pattern: 'SQL%ROWCOUNT\s*=\s*0|SQL%NOTFOUND'
+        hint: "Detecta 0 filas con `SQL%ROWCOUNT = 0`"
+      - pattern: 'RAISE_APPLICATION_ERROR\s*\(\s*-20001'
+        hint: "Lanza `RAISE_APPLICATION_ERROR(-20001, ...)`"
+      - pattern: '\bCOMMIT\b'
+        hint: "No hagas COMMIT dentro del procedimiento"
+        forbid: true
+    explanation: "Un UPDATE no lanza NO_DATA_FOUND: hay que comprobar SQL%ROWCOUNT. El COMMIT lo decide el llamador."
+  - id: d2
+    lang: plsql
+    title: "Función con SELECT INTO y NO_DATA_FOUND"
+    timeLimit: 180
+    prompt: |
+      Crea la función `nombre_cliente(p_id IN clientes.id%TYPE) RETURN VARCHAR2` que devuelva el nombre
+      o **NULL** si el cliente no existe (capturando la excepción adecuada, no WHEN OTHERS).
+    solution: |
+      CREATE OR REPLACE FUNCTION nombre_cliente (p_id IN clientes.id%TYPE) RETURN VARCHAR2 IS
+        l_nombre clientes.nombre%TYPE;
+      BEGIN
+        SELECT nombre INTO l_nombre FROM clientes WHERE id = p_id;
+        RETURN l_nombre;
+      EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+          RETURN NULL;
+      END nombre_cliente;
+      /
+    checks:
+      - pattern: 'CREATE\s+(OR\s+REPLACE\s+)?FUNCTION\s+nombre_cliente'
+        hint: "`CREATE OR REPLACE FUNCTION nombre_cliente`"
+      - pattern: 'RETURN\s+VARCHAR2'
+        hint: "Devuelve VARCHAR2 (sin longitud en la firma)"
+      - pattern: 'clientes\.nombre%TYPE'
+        hint: "Variable anclada `clientes.nombre%TYPE`"
+      - pattern: 'SELECT\s+nombre\s+INTO'
+        hint: "`SELECT nombre INTO l_nombre`"
+      - pattern: 'WHEN\s+NO_DATA_FOUND\s+THEN\s+RETURN\s+NULL'
+        hint: "`WHEN NO_DATA_FOUND THEN RETURN NULL;`"
+      - pattern: 'WHEN\s+OTHERS'
+        hint: "No uses WHEN OTHERS"
+        forbid: true
+  - id: d3
+    lang: plsql
+    title: "Paquete con especificación y cuerpo"
+    timeLimit: 300
+    prompt: |
+      Crea el paquete `pkg_stock` con un procedimiento público `reservar(p_sku IN VARCHAR2, p_qty IN NUMBER)`
+      que descuente stock solo si hay suficiente (`UPDATE ... WHERE cantidad >= p_qty`) y lance **-20020** si no se pudo.
+    solution: |
+      CREATE OR REPLACE PACKAGE pkg_stock AS
+        PROCEDURE reservar (p_sku IN VARCHAR2, p_qty IN NUMBER);
+      END pkg_stock;
+      /
+      CREATE OR REPLACE PACKAGE BODY pkg_stock AS
+        PROCEDURE reservar (p_sku IN VARCHAR2, p_qty IN NUMBER) IS
+        BEGIN
+          UPDATE stock
+             SET cantidad = cantidad - p_qty
+           WHERE sku = p_sku
+             AND cantidad >= p_qty;
+          IF SQL%ROWCOUNT = 0 THEN
+            RAISE_APPLICATION_ERROR(-20020, 'Stock insuficiente para ' || p_sku);
+          END IF;
+        END reservar;
+      END pkg_stock;
+      /
+    checks:
+      - pattern: 'CREATE\s+(OR\s+REPLACE\s+)?PACKAGE\s+pkg_stock\s+(AS|IS)'
+        hint: "Especificación `CREATE OR REPLACE PACKAGE pkg_stock AS`"
+      - pattern: 'CREATE\s+(OR\s+REPLACE\s+)?PACKAGE\s+BODY\s+pkg_stock'
+        hint: "Cuerpo `CREATE OR REPLACE PACKAGE BODY pkg_stock`"
+      - pattern: 'cantidad\s*>=\s*p_qty'
+        hint: "Condición atómica `AND cantidad >= p_qty` en el UPDATE"
+      - pattern: 'SQL%ROWCOUNT\s*=\s*0'
+        hint: "Comprueba `SQL%ROWCOUNT = 0`"
+      - pattern: 'RAISE_APPLICATION_ERROR\s*\(\s*-20020'
+        hint: "Lanza -20020"
+    explanation: "Poner la condición en el propio UPDATE evita la carrera SELECT-luego-UPDATE sin necesidad de FOR UPDATE."
+
+snippets:
+  - id: n1
+    title: "Plantilla de procedimiento profesional"
+    lang: plsql
+    code: |
+      CREATE OR REPLACE PROCEDURE nombre (
+        p_id IN tabla.id%TYPE
+      ) IS
+        l_row tabla%ROWTYPE;
+      BEGIN
+        SELECT * INTO l_row FROM tabla WHERE id = p_id;
+        -- lógica
+      EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+          RAISE_APPLICATION_ERROR(-20004, 'No existe ' || p_id);
+        WHEN OTHERS THEN
+          log_error(SQLCODE, SQLERRM, DBMS_UTILITY.FORMAT_ERROR_BACKTRACE);
+          RAISE;
+      END nombre;
+      /
+  - id: n2
+    title: "Ver errores de compilación"
+    lang: sql
+    code: |
+      SHOW ERRORS PROCEDURE subir_salario      -- en SQL*Plus / SQLcl
+
+      SELECT name, type, line, position, text
+        FROM user_errors
+       ORDER BY name, sequence;
+
+      SELECT object_name, object_type FROM user_objects WHERE status = 'INVALID';
+  - id: n3
+    title: "Depurar con DBMS_OUTPUT"
+    lang: sql
+    code: |
+      SET SERVEROUTPUT ON SIZE UNLIMITED
+      BEGIN
+        DBMS_OUTPUT.PUT_LINE('valor = ' || l_valor);
+      END;
+      /
+  - id: n4
+    title: "Llamar a un procedimiento con parámetros nombrados"
+    lang: plsql
+    code: |
+      BEGIN
+        transferir(p_origen => 1, p_destino => 2, p_importe => 100);
+      END;
+      /
+      -- SQL*Plus / SQLcl:
+      EXEC transferir(p_origen => 1, p_destino => 2, p_importe => 100)
+
+shortcuts:
+  - tool: "SQL Developer"
+    keys: "Alt+F10"
+    action: "Abrir una nueva hoja de trabajo SQL (Worksheet)"
+  - tool: "SQL Developer"
+    keys: "F8"
+    action: "Historial de SQL ejecutado"
+  - tool: "SQL Developer"
+    keys: "Ctrl+/"
+    action: "Comentar / descomentar líneas"
+  - tool: "SQLcl"
+    keys: "info nombre_tabla"
+    action: "Describe enriquecido de una tabla (columnas, índices, estadísticas)"
+  - tool: "SQLcl"
+    keys: "ddl nombre_objeto"
+    action: "Muestra el DDL de un objeto"

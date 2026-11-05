@@ -1,0 +1,327 @@
+id: ch13
+number: 13
+title: "SQL avanzado y bases de datos (Oracle)"
+level: "Senior"
+track: db
+summary: "Modelado, índices, planes de ejecución, transacciones y consistencia de lectura, funciones analíticas, MERGE y paginación."
+objectives:
+  - "Leer un plan de ejecución y saber por qué un índice no se usa."
+  - "Entender el modelo de consistencia de Oracle (MVCC con undo) y los niveles de aislamiento."
+  - "Escribir consultas analíticas (ventanas) y upserts con MERGE."
+
+sections:
+  - id: s1
+    title: "Modelado y trampas de NULL en Oracle"
+    body: |
+      Normalización práctica: **1FN** (valores atómicos), **2FN** (sin dependencias parciales de una clave compuesta), **3FN** (sin dependencias transitivas). En OLTP normaliza; desnormaliza solo con un motivo medido (lecturas muy calientes, reporting).
+
+      Trampas que todo senior de Oracle conoce:
+
+      - **La cadena vacía `''` es NULL** en Oracle. `WHERE nombre = ''` nunca devuelve filas.
+      - `NULL = NULL` es *desconocido*: usa `IS NULL`, `NVL`, `COALESCE` o `DECODE` (que sí trata NULL como igual).
+      - `NOT IN (subconsulta)` devuelve **cero filas** si la subconsulta contiene algún NULL. Prefiere `NOT EXISTS`.
+      - El DDL hace **COMMIT implícito** (antes y después): un `CREATE TABLE` en mitad de una transacción confirma lo anterior.
+
+      ```sql
+      -- Devuelve 0 filas si algún pedido tiene cliente_id NULL
+      SELECT * FROM clientes c WHERE c.id NOT IN (SELECT cliente_id FROM pedidos);
+
+      -- Correcto
+      SELECT * FROM clientes c
+       WHERE NOT EXISTS (SELECT 1 FROM pedidos p WHERE p.cliente_id = c.id);
+      ```
+
+      Claves: columnas identidad (`GENERATED ALWAYS AS IDENTITY`, 12c+) o secuencias. Usa claves foráneas siempre e **indexa las columnas FK**: sin índice, un `DELETE` en la tabla padre bloquea la tabla hija completa.
+
+  - id: s2
+    title: "Índices y planes de ejecución"
+    body: |
+      - **B-tree**: el índice por defecto. Ideal para alta selectividad.
+      - **Compuesto** `(a, b)`: sirve para filtros sobre `a` o sobre `a` y `b`. Para `b` solo puede usar *index skip scan* si `a` tiene pocos valores distintos.
+      - **Basado en función**: `CREATE INDEX ix ON clientes (UPPER(email))` para `WHERE UPPER(email) = :e`.
+      - **Bitmap**: baja cardinalidad en data warehouse; en OLTP con DML concurrente provoca bloqueos.
+      - Un índice B-tree de una sola columna **no almacena las filas con NULL**, así que `WHERE col IS NULL` no puede usarlo.
+
+      Por qué no se usa tu índice: función sobre la columna (`TRUNC(fecha) = ...`), **conversión implícita** (`WHERE codigo = 123` con `codigo VARCHAR2`), `LIKE '%texto'`, estadísticas desactualizadas o baja selectividad (un full scan es más barato).
+
+      ```sql
+      EXPLAIN PLAN FOR
+        SELECT * FROM pedidos WHERE cliente_id = :id AND estado = 'PAGADO';
+      SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
+
+      -- Plan REAL con filas reales vs. estimadas
+      SELECT /*+ GATHER_PLAN_STATISTICS */ * FROM pedidos WHERE cliente_id = 42;
+      SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY_CURSOR(NULL, NULL, 'ALLSTATS LAST'));
+      ```
+
+      Compara **E-Rows** (estimadas) con **A-Rows** (reales): una diferencia grande suele indicar estadísticas malas (`DBMS_STATS.GATHER_TABLE_STATS`).
+
+  - id: s3
+    title: "Transacciones, consistencia y bloqueos"
+    body: |
+      Oracle usa **multiversión con undo**: cada consulta ve los datos tal como estaban al empezar (*read consistency*).
+
+      - **Los lectores no bloquean a los escritores y los escritores no bloquean a los lectores.**
+      - Nivel por defecto: **READ COMMITTED** (consistencia por sentencia). También existe **SERIALIZABLE** (consistencia por transacción, falla con ORA-08177 si hay conflicto).
+      - Oracle **nunca** hace lecturas sucias.
+      - Consultas largas sobre datos muy modificados pueden fallar con **ORA-01555 snapshot too old** (el undo necesario se reutilizó).
+
+      Bloqueo explícito:
+
+      ```sql
+      SELECT * FROM cuentas WHERE id = :id FOR UPDATE NOWAIT;       -- falla al instante si está bloqueada
+      SELECT * FROM tareas WHERE estado = 'PENDIENTE'
+         FOR UPDATE SKIP LOCKED FETCH FIRST 10 ROWS ONLY;            -- colas de trabajo concurrentes
+      ```
+
+      **Deadlock** (ORA-00060): Oracle lo detecta y revierte *la sentencia* de una de las sesiones. Prevención: bloquear siempre en el mismo orden.
+
+      **Bind variables** (`:id`): permiten reutilizar el plan (*soft parse*) en vez de recompilar cada consulta (*hard parse*) y eliminan la inyección SQL.
+
+  - id: s4
+    title: "Funciones analíticas, MERGE y paginación"
+    body: |
+      Las **funciones de ventana** calculan sobre un conjunto de filas relacionadas sin colapsarlas:
+
+      ```sql
+      SELECT departamento_id, nombre, salario,
+             ROW_NUMBER() OVER (PARTITION BY departamento_id ORDER BY salario DESC) AS rn,
+             RANK()       OVER (PARTITION BY departamento_id ORDER BY salario DESC) AS rk,
+             SUM(salario) OVER (PARTITION BY departamento_id)                       AS total_depto,
+             salario - LAG(salario) OVER (ORDER BY fecha_alta)                      AS dif_anterior
+        FROM empleados;
+      ```
+
+      `ROW_NUMBER` da números únicos; `RANK` deja huecos tras empates (1,1,3); `DENSE_RANK` no (1,1,2).
+
+      **MERGE** (upsert):
+
+      ```sql
+      MERGE INTO stock t
+      USING (SELECT :sku AS sku, :qty AS qty FROM dual) s
+         ON (t.sku = s.sku)
+       WHEN MATCHED THEN UPDATE SET t.cantidad = t.cantidad + s.qty
+       WHEN NOT MATCHED THEN INSERT (sku, cantidad) VALUES (s.sku, s.qty);
+      ```
+
+      **Paginación**: `OFFSET :n ROWS FETCH NEXT :m ROWS ONLY` (12c+). Para páginas profundas usa **keyset pagination** (`WHERE id > :ultimo_id ORDER BY id FETCH FIRST 50 ROWS ONLY`): el coste no crece con el número de página.
+
+      **CTE** (`WITH`) para legibilidad, y `WITH ... SEARCH DEPTH FIRST` o `CONNECT BY` para jerarquías.
+
+cards:
+  - id: c1
+    front: "¿Qué valor tiene `''` (cadena vacía) en Oracle?"
+    back: "**NULL**. Por eso `WHERE col = ''` nunca devuelve filas; usa `IS NULL`."
+  - id: c2
+    front: "¿Por qué `NOT IN (subconsulta)` puede devolver 0 filas inesperadamente?"
+    back: "Si la subconsulta devuelve algún NULL, la comparación `x <> NULL` es desconocida para todas las filas. Usa `NOT EXISTS`."
+  - id: c3
+    front: "¿Por qué indexar las claves foráneas en Oracle?"
+    back: "Sin índice en la FK, borrar o actualizar la PK del padre requiere un bloqueo de tabla en el hijo y un full scan: problemas de concurrencia y rendimiento."
+  - id: c4
+    front: "¿Qué indica una gran diferencia entre E-Rows y A-Rows en un plan?"
+    back: "Que el optimizador estimó mal la cardinalidad (estadísticas obsoletas, sesgo de datos, predicados correlacionados), y probablemente eligió un plan malo."
+  - id: c5
+    front: "En Oracle, ¿los lectores bloquean a los escritores?"
+    back: "No. Gracias a la consistencia de lectura con undo (MVCC), ni los lectores bloquean a los escritores ni al revés."
+  - id: c6
+    front: "¿Qué es ORA-01555 snapshot too old?"
+    back: "Una consulta larga necesita reconstruir datos antiguos desde el undo, pero ese undo ya fue sobrescrito. Se mitiga con más undo/retención o consultas más cortas."
+  - id: c7
+    front: "Diferencia entre ROW_NUMBER, RANK y DENSE_RANK."
+    back: "ROW_NUMBER: 1,2,3 siempre únicos. RANK: empates comparten número y deja huecos (1,1,3). DENSE_RANK: empates sin huecos (1,1,2)."
+  - id: c8
+    front: "¿Por qué la keyset pagination escala mejor que OFFSET?"
+    back: "OFFSET debe leer y descartar todas las filas anteriores; keyset filtra por la última clave vista (`WHERE id > :last`) usando el índice directamente."
+  - id: c9
+    front: "¿Qué hacen FOR UPDATE NOWAIT y SKIP LOCKED?"
+    back: "NOWAIT falla de inmediato (ORA-00054) si la fila está bloqueada; SKIP LOCKED salta las filas bloqueadas, ideal para colas de trabajo con varios consumidores."
+
+questions:
+  - id: q1
+    type: mcq
+    tag: "¿Qué devuelve?"
+    prompt: "La tabla `pedidos` tiene filas con `cliente_id` NULL. ¿Cuántas filas devuelve?"
+    lang: sql
+    code: |
+      SELECT COUNT(*) FROM clientes
+       WHERE id NOT IN (SELECT cliente_id FROM pedidos);
+    options: ["Los clientes sin pedidos", "0", "Todos los clientes", "Error ORA-01427"]
+    answer: 1
+    explanation: "Con un NULL en la lista, `id <> NULL` es desconocido para todas las filas y el predicado nunca es verdadero."
+  - id: q2
+    type: tf
+    prompt: "En Oracle, `SELECT * FROM t WHERE col = ''` devuelve las filas cuyo valor es la cadena vacía."
+    answer: false
+    explanation: "Oracle trata '' como NULL, y `= NULL` nunca es verdadero."
+  - id: q3
+    type: mcq
+    prompt: "`codigo` es VARCHAR2 con índice. ¿Por qué `WHERE codigo = 123` hace full scan?"
+    options:
+      - "Porque los índices no soportan números"
+      - "Por la conversión implícita TO_NUMBER(codigo), que aplica una función sobre la columna"
+      - "Porque falta un hint"
+      - "Porque 123 es un literal"
+    answer: 1
+    explanation: "Oracle convierte la columna (no el literal) a número, lo que equivale a una función sobre la columna e impide usar el índice. Usa '123' o una bind del tipo correcto."
+  - id: q4
+    type: mcq
+    prompt: "¿Qué nivel de aislamiento usa Oracle por defecto?"
+    options: ["READ UNCOMMITTED", "READ COMMITTED", "REPEATABLE READ", "SERIALIZABLE"]
+    answer: 1
+    explanation: "READ COMMITTED con consistencia a nivel de sentencia. Oracle no implementa lecturas sucias."
+  - id: q5
+    type: fill
+    prompt: "Completa para ver el plan real de la última sentencia: `SELECT * FROM TABLE(DBMS_XPLAN.______(NULL, NULL, 'ALLSTATS LAST'));`"
+    answer: ["DISPLAY_CURSOR"]
+    explanation: "DISPLAY_CURSOR muestra el plan de la caché de cursores; con ALLSTATS LAST y el hint GATHER_PLAN_STATISTICS incluye filas reales."
+  - id: q6
+    type: mcq
+    tag: "¿Qué devuelve?"
+    prompt: "Salarios 5000, 5000, 4000 en el mismo departamento ordenados DESC. ¿Qué valores da `RANK()`?"
+    options: ["1, 2, 3", "1, 1, 2", "1, 1, 3", "1, 1, 1"]
+    answer: 2
+    explanation: "RANK asigna el mismo número a los empates y salta posiciones: 1, 1, 3. DENSE_RANK daría 1, 1, 2."
+  - id: q7
+    type: tf
+    prompt: "Ejecutar `CREATE TABLE` dentro de una transacción con INSERTs pendientes los confirma."
+    answer: true
+    explanation: "El DDL en Oracle hace COMMIT implícito antes y después de ejecutarse."
+  - id: q8
+    type: mcq
+    prompt: "Varios workers deben tomar tareas pendientes sin procesar la misma dos veces ni esperarse entre sí. ¿Qué usarías?"
+    options:
+      - "SELECT ... FOR UPDATE"
+      - "SELECT ... FOR UPDATE SKIP LOCKED"
+      - "LOCK TABLE tareas IN EXCLUSIVE MODE"
+      - "SERIALIZABLE sin bloqueos"
+    answer: 1
+    explanation: "SKIP LOCKED hace que cada worker reciba filas que nadie más tiene bloqueadas, sin esperar."
+
+drills:
+  - id: d1
+    lang: sql
+    title: "Top 3 salarios por departamento"
+    timeLimit: 180
+    prompt: |
+      Con la tabla `empleados(id, nombre, departamento_id, salario)`, devuelve los **3 empleados mejor pagados
+      de cada departamento** usando una función analítica.
+    solution: |
+      SELECT departamento_id, nombre, salario
+        FROM (SELECT e.departamento_id, e.nombre, e.salario,
+                     ROW_NUMBER() OVER (PARTITION BY e.departamento_id ORDER BY e.salario DESC) AS rn
+                FROM empleados e)
+       WHERE rn <= 3;
+    checks:
+      - pattern: '(ROW_NUMBER|DENSE_RANK|RANK)\s*\(\s*\)\s*OVER\s*\('
+        hint: "Usa ROW_NUMBER() (o RANK) OVER (...)"
+      - pattern: 'PARTITION\s+BY\s+(\w+\.)?departamento_id'
+        hint: "Particiona por departamento"
+      - pattern: 'ORDER\s+BY\s+(\w+\.)?salario\s+DESC'
+        hint: "Ordena por salario descendente dentro de la ventana"
+      - pattern: '<=\s*3|<\s*4|BETWEEN\s+1\s+AND\s+3'
+        hint: "Filtra las 3 primeras posiciones en la consulta externa"
+    explanation: "No se puede filtrar por una función analítica en el mismo WHERE: hay que envolverla en una subconsulta o CTE."
+  - id: d2
+    lang: sql
+    title: "Upsert de stock con MERGE"
+    timeLimit: 180
+    prompt: |
+      Escribe un `MERGE` sobre `stock(sku, cantidad)` que **sume** `:qty` si el `:sku` existe
+      o lo **inserte** si no existe. Usa bind variables.
+    solution: |
+      MERGE INTO stock t
+      USING (SELECT :sku AS sku, :qty AS qty FROM dual) s
+         ON (t.sku = s.sku)
+       WHEN MATCHED THEN UPDATE SET t.cantidad = t.cantidad + s.qty
+       WHEN NOT MATCHED THEN INSERT (sku, cantidad) VALUES (s.sku, s.qty);
+    checks:
+      - pattern: 'MERGE\s+INTO\s+stock'
+        hint: "`MERGE INTO stock`"
+      - pattern: 'USING\s*\('
+        hint: "Origen con `USING (SELECT ... FROM dual)`"
+      - pattern: 'WHEN\s+MATCHED\s+THEN\s+UPDATE'
+        hint: "Rama `WHEN MATCHED THEN UPDATE`"
+      - pattern: 'WHEN\s+NOT\s+MATCHED\s+THEN\s+INSERT'
+        hint: "Rama `WHEN NOT MATCHED THEN INSERT`"
+      - pattern: ':sku'
+        hint: "Usa bind variables (:sku, :qty)"
+      - pattern: '''\s*\|\|'
+        hint: "No concatenes valores en el SQL"
+        forbid: true
+  - id: d3
+    lang: sql
+    title: "Paginación keyset"
+    timeLimit: 120
+    prompt: |
+      Devuelve la siguiente página de 50 `pedidos` ordenados por `id`, a partir del último id visto `:ultimo_id`,
+      **sin usar OFFSET**.
+    solution: |
+      SELECT id, cliente_id, total
+        FROM pedidos
+       WHERE id > :ultimo_id
+       ORDER BY id
+       FETCH FIRST 50 ROWS ONLY;
+    checks:
+      - pattern: 'WHERE\s+(\w+\.)?id\s*>\s*:ultimo_id'
+        hint: "Filtra `WHERE id > :ultimo_id`"
+      - pattern: 'ORDER\s+BY\s+(\w+\.)?id'
+        hint: "Ordena por id"
+      - pattern: 'FETCH\s+(FIRST|NEXT)\s+50\s+ROWS?\s+ONLY|ROWNUM\s*<=\s*50'
+        hint: "Limita con `FETCH FIRST 50 ROWS ONLY`"
+      - pattern: '\bOFFSET\b'
+        hint: "No uses OFFSET"
+        forbid: true
+
+snippets:
+  - id: n1
+    title: "Plan de ejecución real"
+    lang: sql
+    code: |
+      ALTER SESSION SET statistics_level = ALL;
+      SELECT /*+ GATHER_PLAN_STATISTICS */ ...;
+      SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY_CURSOR(NULL, NULL, 'ALLSTATS LAST'));
+  - id: n2
+    title: "Sesiones que bloquean a otras"
+    lang: sql
+    code: |
+      SELECT s.sid, s.serial#, s.username, s.blocking_session, s.event, s.seconds_in_wait, q.sql_text
+        FROM v$session s LEFT JOIN v$sql q ON q.sql_id = s.sql_id
+       WHERE s.blocking_session IS NOT NULL;
+  - id: n3
+    title: "Recolectar estadísticas"
+    lang: sql
+    code: |
+      BEGIN
+        DBMS_STATS.GATHER_TABLE_STATS(ownname => USER, tabname => 'PEDIDOS', cascade => TRUE);
+      END;
+      /
+  - id: n4
+    title: "Duplicados por columna"
+    lang: sql
+    code: |
+      SELECT email, COUNT(*) FROM clientes GROUP BY email HAVING COUNT(*) > 1;
+
+      -- Borrar duplicados dejando el de menor id
+      DELETE FROM clientes c
+       WHERE c.ROWID NOT IN (SELECT MIN(ROWID) FROM clientes GROUP BY email);
+
+shortcuts:
+  - tool: "SQL Developer"
+    keys: "Ctrl+Enter"
+    action: "Ejecutar la sentencia bajo el cursor"
+  - tool: "SQL Developer"
+    keys: "F5"
+    action: "Ejecutar como script (todo el editor)"
+  - tool: "SQL Developer"
+    keys: "F10"
+    action: "Explain Plan de la sentencia"
+  - tool: "SQL Developer"
+    keys: "F6"
+    action: "Autotrace (plan con estadísticas reales)"
+  - tool: "SQL Developer"
+    keys: "Ctrl+F7"
+    action: "Formatear SQL"
+  - tool: "SQL Developer"
+    keys: "Ctrl+Space"
+    action: "Autocompletar"

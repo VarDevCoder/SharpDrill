@@ -1,0 +1,416 @@
+id: ch15
+number: 15
+title: "PL/SQL avanzado y rendimiento"
+level: "Senior"
+track: db
+summary: "Colecciones, BULK COLLECT y FORALL, SQL dinámico seguro, REF CURSOR, triggers, transacciones autónomas y funciones pipelined."
+objectives:
+  - "Reducir cambios de contexto PL/SQL↔SQL con operaciones masivas."
+  - "Escribir SQL dinámico sin inyección."
+  - "Saber cuándo un trigger o una transacción autónoma es (y no es) la herramienta correcta."
+
+sections:
+  - id: s1
+    title: "Colecciones"
+    body: |
+      | Tipo | Declaración | Índice | Uso típico |
+      |---|---|---|---|
+      | Asociativo | `TABLE OF x INDEX BY PLS_INTEGER` / `VARCHAR2(n)` | Disperso, cualquier valor | Cachés en memoria, lookups |
+      | Nested table | `TABLE OF x` | Denso 1..n (puede quedar disperso tras DELETE) | BULK COLLECT, tipos SQL |
+      | VARRAY | `VARRAY(n) OF x` | Denso, tamaño máximo fijo | Listas pequeñas acotadas |
+
+      ```sql
+      DECLARE
+        TYPE t_precios IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+        l_precio t_precios;
+        TYPE t_ids IS TABLE OF pedidos.id%TYPE;            -- nested table
+        l_ids t_ids := t_ids();                            -- ¡hay que inicializarla!
+      BEGIN
+        l_precio('SKU-1') := 9.99;
+        l_ids.EXTEND;  l_ids(l_ids.LAST) := 100;
+        IF l_precio.EXISTS('SKU-2') THEN NULL; END IF;
+        DBMS_OUTPUT.PUT_LINE(l_ids.COUNT);
+      END;
+      ```
+
+      Métodos: `COUNT`, `FIRST`, `LAST`, `NEXT(i)`, `PRIOR(i)`, `EXISTS(i)`, `EXTEND`, `TRIM`, `DELETE`. Para recorrer una colección dispersa usa `i := c.FIRST; WHILE i IS NOT NULL LOOP ... i := c.NEXT(i); END LOOP;` en vez de `FOR i IN 1..c.COUNT`.
+
+  - id: s2
+    title: "BULK COLLECT y FORALL"
+    body: |
+      Cada sentencia SQL dentro de un bucle PL/SQL provoca un **cambio de contexto** entre los motores PL/SQL y SQL. Con miles de filas, ese coste domina.
+
+      - **BULK COLLECT** trae muchas filas a una colección en una sola llamada.
+      - **FORALL** envía un DML con todos los elementos de la colección en una sola llamada.
+
+      ```sql
+      DECLARE
+        CURSOR c IS SELECT id, total FROM pedidos WHERE estado = 'PENDIENTE';
+        TYPE t_ids    IS TABLE OF pedidos.id%TYPE;
+        TYPE t_totals IS TABLE OF pedidos.total%TYPE;
+        l_ids t_ids;  l_tot t_totals;
+      BEGIN
+        OPEN c;
+        LOOP
+          FETCH c BULK COLLECT INTO l_ids, l_tot LIMIT 1000;   -- memoria acotada
+          EXIT WHEN l_ids.COUNT = 0;                           -- ¡no c%NOTFOUND aquí!
+          FORALL i IN 1 .. l_ids.COUNT
+            UPDATE pedidos SET estado = 'FACTURADO', total = l_tot(i) * 1.21 WHERE id = l_ids(i);
+        END LOOP;
+        CLOSE c;
+      END;
+      ```
+
+      **Bug clásico**: `EXIT WHEN c%NOTFOUND` justo después del `FETCH ... LIMIT` se salta el **último lote parcial**, porque `%NOTFOUND` es verdadero en cuanto se leen menos filas que el límite. Sal con `EXIT WHEN coleccion.COUNT = 0` (o comprueba `%NOTFOUND` al final del bucle).
+
+      `FORALL ... SAVE EXCEPTIONS` continúa ante errores y al final lanza **ORA-24381**; los detalles están en `SQL%BULK_EXCEPTIONS(j).ERROR_INDEX` y `.ERROR_CODE`. `SQL%BULK_ROWCOUNT(i)` da las filas afectadas por cada elemento.
+
+  - id: s3
+    title: "SQL dinámico seguro y REF CURSOR"
+    body: |
+      `EXECUTE IMMEDIATE` ejecuta SQL construido en tiempo de ejecución. **Los valores siempre con bind (`USING`)**; los identificadores (tablas, columnas) no se pueden enlazar, así que se validan con `DBMS_ASSERT`.
+
+      ```sql
+      CREATE OR REPLACE FUNCTION contar (p_tabla IN VARCHAR2, p_estado IN VARCHAR2) RETURN NUMBER IS
+        l_n NUMBER;
+      BEGIN
+        EXECUTE IMMEDIATE
+          'SELECT COUNT(*) FROM ' || DBMS_ASSERT.SQL_OBJECT_NAME(p_tabla) || ' WHERE estado = :e'
+          INTO l_n USING p_estado;
+        RETURN l_n;
+      END;
+      ```
+
+      ❌ `'... WHERE estado = ''' || p_estado || ''''` → **inyección SQL** y un *hard parse* por cada valor distinto.
+
+      **SYS_REFCURSOR** devuelve un conjunto de resultados al cliente (C#, Java, Node) sin materializarlo en PL/SQL:
+
+      ```sql
+      CREATE OR REPLACE FUNCTION pedidos_de (p_cliente IN NUMBER) RETURN SYS_REFCURSOR IS
+        l_rc SYS_REFCURSOR;
+      BEGIN
+        OPEN l_rc FOR SELECT id, total, fecha FROM pedidos WHERE cliente_id = p_cliente ORDER BY fecha DESC;
+        RETURN l_rc;   -- el cliente lo lee y lo cierra
+      END;
+      ```
+
+      Desde .NET: `OracleCommand` con un parámetro `OracleDbType.RefCursor` de dirección `ReturnValue` y luego `ExecuteReader()` (ODP.NET).
+
+  - id: s4
+    title: "Triggers, transacciones autónomas y pipelined"
+    body: |
+      **Triggers**: `BEFORE`/`AFTER`, a nivel de **fila** (`FOR EACH ROW`, con `:NEW`/`:OLD`) o de **sentencia**. Úsalos para auditoría o integridad que no se pueda expresar con constraints; no para lógica de negocio oculta.
+
+      ```sql
+      CREATE OR REPLACE TRIGGER trg_pedidos_bu
+        BEFORE UPDATE ON pedidos FOR EACH ROW
+      BEGIN
+        :NEW.actualizado_en := SYSTIMESTAMP;
+        :NEW.version := :OLD.version + 1;
+      END;
+      ```
+
+      **ORA-04091 mutating table**: un trigger de fila no puede consultar ni modificar la tabla que lo disparó. Solución: **compound trigger** (acumula en `BEFORE EACH ROW` / `AFTER EACH ROW` y actúa en `AFTER STATEMENT`) o rediseñar.
+
+      **Transacción autónoma** (`PRAGMA AUTONOMOUS_TRANSACTION`): transacción independiente de la del llamador. Uso legítimo: **logging de errores** que debe persistir aunque la transacción principal haga ROLLBACK. Debe terminar con COMMIT/ROLLBACK (si no, ORA-06519).
+
+      ```sql
+      CREATE OR REPLACE PROCEDURE log_error (p_code NUMBER, p_msg VARCHAR2, p_trace VARCHAR2) IS
+        PRAGMA AUTONOMOUS_TRANSACTION;
+      BEGIN
+        INSERT INTO errores_log (codigo, mensaje, traza, creado_en) VALUES (p_code, p_msg, p_trace, SYSTIMESTAMP);
+        COMMIT;
+      END;
+      ```
+
+      **Funciones pipelined** (`PIPE ROW`) devuelven filas a medida que se producen y se consultan con `SELECT * FROM TABLE(f(...))`. **RESULT_CACHE** cachea resultados de funciones entre sesiones (invalida automáticamente al cambiar las tablas consultadas).
+
+cards:
+  - id: c1
+    front: "¿Qué es un cambio de contexto en PL/SQL y cómo se reduce?"
+    back: "El salto entre el motor PL/SQL y el de SQL en cada sentencia. Se reduce con BULK COLLECT (lecturas) y FORALL (DML) o haciendo todo en una sentencia SQL."
+  - id: c2
+    front: "Bug de `EXIT WHEN c%NOTFOUND` con `BULK COLLECT LIMIT`."
+    back: "Tras leer un lote parcial (menos filas que el LIMIT), %NOTFOUND ya es TRUE y se sale sin procesar ese último lote. Usa `EXIT WHEN coleccion.COUNT = 0`."
+  - id: c3
+    front: "¿Qué hace `FORALL ... SAVE EXCEPTIONS`?"
+    back: "Continúa con el resto de elementos ante errores y al final lanza ORA-24381; los errores están en `SQL%BULK_EXCEPTIONS`."
+  - id: c4
+    front: "¿Por qué no concatenar valores en EXECUTE IMMEDIATE?"
+    back: "Inyección SQL y un hard parse por cada valor distinto. Los valores van con `USING` (binds); los identificadores, validados con `DBMS_ASSERT`."
+  - id: c5
+    front: "Diferencia de inicialización entre array asociativo y nested table."
+    back: "El asociativo no necesita inicializarse. La nested table (y el VARRAY) debe inicializarse con su constructor `t()` y crecer con `EXTEND` (salvo al usar BULK COLLECT)."
+  - id: c6
+    front: "¿Qué es ORA-04091 (mutating table)?"
+    back: "Un trigger de fila intenta leer o modificar la tabla que lo está disparando. Se resuelve con compound triggers o rediseñando."
+  - id: c7
+    front: "Uso legítimo de PRAGMA AUTONOMOUS_TRANSACTION."
+    back: "Registrar errores o auditoría que deben persistir aunque la transacción principal haga ROLLBACK."
+  - id: c8
+    front: "¿Para qué sirve SYS_REFCURSOR?"
+    back: "Para devolver un conjunto de resultados abierto al cliente (C#, Java, Node), que lo lee de forma incremental y lo cierra."
+
+questions:
+  - id: q1
+    type: mcq
+    tag: "Code review"
+    prompt: "Hay 2.500 filas pendientes. ¿Cuántas se procesan?"
+    lang: plsql
+    code: |
+      OPEN c;
+      LOOP
+        FETCH c BULK COLLECT INTO l_ids LIMIT 1000;
+        EXIT WHEN c%NOTFOUND;
+        FORALL i IN 1 .. l_ids.COUNT
+          UPDATE pedidos SET estado = 'OK' WHERE id = l_ids(i);
+      END LOOP;
+      CLOSE c;
+    options: ["2.500", "2.000", "1.000", "0"]
+    answer: 1
+    explanation: "En el tercer FETCH llegan 500 filas y %NOTFOUND ya es TRUE: se sale sin procesarlas. Usa EXIT WHEN l_ids.COUNT = 0."
+  - id: q2
+    type: mcq
+    prompt: "¿Qué opción de SQL dinámico es segura?"
+    options:
+      - "EXECUTE IMMEDIATE 'DELETE FROM t WHERE id = ' || p_id;"
+      - "EXECUTE IMMEDIATE 'DELETE FROM t WHERE id = :id' USING p_id;"
+      - "EXECUTE IMMEDIATE 'DELETE FROM ' || p_tabla || ' WHERE 1=1';"
+      - "EXECUTE IMMEDIATE p_sql;"
+    answer: 1
+    explanation: "Con bind variables el valor nunca se interpreta como SQL y el cursor se reutiliza."
+  - id: q3
+    type: tf
+    prompt: "Se puede usar una bind variable para el nombre de una tabla: `EXECUTE IMMEDIATE 'SELECT * FROM :t' USING p_tabla`."
+    answer: false
+    explanation: "Las binds solo sustituyen valores, no identificadores. Valida el nombre con DBMS_ASSERT.SQL_OBJECT_NAME o ENQUOTE_NAME."
+  - id: q4
+    type: fill
+    prompt: "Completa: para cargar muchas filas en una colección en una sola llamada se usa `FETCH c ______ ______ INTO l_tab LIMIT 1000`."
+    answer: ["BULK COLLECT"]
+    explanation: "BULK COLLECT reduce los cambios de contexto; LIMIT acota la memoria usada."
+  - id: q5
+    type: mcq
+    prompt: "Un trigger AFTER INSERT FOR EACH ROW sobre `lineas` hace `SELECT SUM(importe) FROM lineas WHERE pedido_id = :NEW.pedido_id`. ¿Qué ocurre?"
+    options: ["Funciona", "ORA-04091 mutating table", "ORA-01403", "Bloqueo infinito"]
+    answer: 1
+    explanation: "Un trigger de fila no puede consultar su propia tabla mientras se modifica. Usa un compound trigger o calcula fuera."
+  - id: q6
+    type: tf
+    prompt: "Un procedimiento con PRAGMA AUTONOMOUS_TRANSACTION que hace INSERT conserva ese INSERT aunque el llamador haga ROLLBACK (si el procedimiento hizo COMMIT)."
+    answer: true
+    explanation: "La transacción autónoma es independiente: su COMMIT no depende de la del llamador."
+  - id: q7
+    type: mcq
+    prompt: "¿Qué excepción lanza FORALL ... SAVE EXCEPTIONS si algún elemento falló?"
+    options: ["ORA-01403", "ORA-24381", "ORA-06502", "Ninguna, los ignora"]
+    answer: 1
+    explanation: "ORA-24381 (error(s) in array DML). Los detalles están en SQL%BULK_EXCEPTIONS."
+  - id: q8
+    type: mcq
+    prompt: "¿Qué colección es adecuada como caché en memoria de precios por código de producto (string)?"
+    options: ["VARRAY(100) OF NUMBER", "TABLE OF NUMBER INDEX BY VARCHAR2(20)", "TABLE OF NUMBER", "SYS_REFCURSOR"]
+    answer: 1
+    explanation: "El array asociativo indexado por VARCHAR2 es un diccionario en memoria, sin inicialización y con acceso por clave."
+
+drills:
+  - id: d1
+    lang: plsql
+    title: "Proceso masivo con BULK COLLECT LIMIT + FORALL"
+    timeLimit: 300
+    prompt: |
+      Escribe un bloque anónimo que lea los `id` de `pedidos` con `estado = 'PENDIENTE'` en **lotes de 500**
+      y los marque como `'PROCESADO'` con **FORALL**. Asegúrate de no perder el último lote.
+    starter: |
+      DECLARE
+        CURSOR c IS SELECT id FROM pedidos WHERE estado = 'PENDIENTE';
+        -- declara la colección
+      BEGIN
+        NULL;
+      END;
+      /
+    solution: |
+      DECLARE
+        CURSOR c IS SELECT id FROM pedidos WHERE estado = 'PENDIENTE';
+        TYPE t_ids IS TABLE OF pedidos.id%TYPE;
+        l_ids t_ids;
+      BEGIN
+        OPEN c;
+        LOOP
+          FETCH c BULK COLLECT INTO l_ids LIMIT 500;
+          EXIT WHEN l_ids.COUNT = 0;
+          FORALL i IN 1 .. l_ids.COUNT
+            UPDATE pedidos SET estado = 'PROCESADO' WHERE id = l_ids(i);
+        END LOOP;
+        CLOSE c;
+      END;
+      /
+    checks:
+      - pattern: 'TYPE\s+\w+\s+IS\s+TABLE\s+OF'
+        hint: "Declara un tipo colección `TYPE t IS TABLE OF ...`"
+      - pattern: 'FETCH\s+\w+\s+BULK\s+COLLECT\s+INTO\s+\w+\s+LIMIT\s+500'
+        hint: "`FETCH c BULK COLLECT INTO l_ids LIMIT 500`"
+      - pattern: 'EXIT\s+WHEN\s+\w+\.COUNT\s*=\s*0'
+        hint: "Sal con `EXIT WHEN l_ids.COUNT = 0` (no %NOTFOUND)"
+      - pattern: 'FORALL\s+\w+\s+IN\s+1\s*\.\.\s*\w+\.COUNT'
+        hint: "`FORALL i IN 1 .. l_ids.COUNT`"
+      - pattern: 'CLOSE\s+\w+'
+        hint: "Cierra el cursor"
+    explanation: "LIMIT acota la memoria; salir por COUNT = 0 procesa también el último lote parcial."
+  - id: d2
+    lang: plsql
+    title: "Función con SYS_REFCURSOR"
+    timeLimit: 180
+    prompt: |
+      Crea `pedidos_cliente(p_cliente_id IN NUMBER) RETURN SYS_REFCURSOR` que devuelva `id, total, fecha`
+      de los pedidos del cliente ordenados por fecha descendente.
+    solution: |
+      CREATE OR REPLACE FUNCTION pedidos_cliente (p_cliente_id IN NUMBER) RETURN SYS_REFCURSOR IS
+        l_rc SYS_REFCURSOR;
+      BEGIN
+        OPEN l_rc FOR
+          SELECT id, total, fecha
+            FROM pedidos
+           WHERE cliente_id = p_cliente_id
+           ORDER BY fecha DESC;
+        RETURN l_rc;
+      END pedidos_cliente;
+      /
+    checks:
+      - pattern: 'FUNCTION\s+pedidos_cliente'
+        hint: "Crea la función `pedidos_cliente`"
+      - pattern: 'RETURN\s+SYS_REFCURSOR'
+        hint: "`RETURN SYS_REFCURSOR`"
+      - pattern: 'OPEN\s+\w+\s+FOR\s+SELECT'
+        hint: "`OPEN l_rc FOR SELECT ...`"
+      - pattern: 'cliente_id\s*=\s*p_cliente_id'
+        hint: "Filtra por el parámetro (no concatenes)"
+      - pattern: 'ORDER\s+BY\s+fecha\s+DESC'
+        hint: "Ordena por fecha DESC"
+      - pattern: 'RETURN\s+\w+\s*;'
+        hint: "Devuelve el cursor abierto"
+  - id: d3
+    lang: plsql
+    title: "SQL dinámico sin inyección"
+    timeLimit: 240
+    prompt: |
+      Crea `contar_por_estado(p_tabla IN VARCHAR2, p_estado IN VARCHAR2) RETURN NUMBER` con `EXECUTE IMMEDIATE`.
+      Valida el nombre de la tabla con **DBMS_ASSERT** y pasa el estado como **bind variable**.
+    solution: |
+      CREATE OR REPLACE FUNCTION contar_por_estado (p_tabla IN VARCHAR2, p_estado IN VARCHAR2) RETURN NUMBER IS
+        l_n NUMBER;
+      BEGIN
+        EXECUTE IMMEDIATE
+          'SELECT COUNT(*) FROM ' || DBMS_ASSERT.SQL_OBJECT_NAME(p_tabla) || ' WHERE estado = :e'
+          INTO l_n
+          USING p_estado;
+        RETURN l_n;
+      END contar_por_estado;
+      /
+    checks:
+      - pattern: 'EXECUTE\s+IMMEDIATE'
+        hint: "Usa `EXECUTE IMMEDIATE`"
+      - pattern: 'DBMS_ASSERT\.(SQL_OBJECT_NAME|ENQUOTE_NAME|SIMPLE_SQL_NAME|QUALIFIED_SQL_NAME)\s*\(\s*p_tabla'
+        hint: "Valida la tabla con `DBMS_ASSERT.SQL_OBJECT_NAME(p_tabla)`"
+      - pattern: 'estado\s*=\s*:\w+'
+        hint: "Usa una bind `estado = :e` en el SQL"
+      - pattern: 'INTO\s+\w+\s+USING\s+p_estado'
+        hint: "`INTO l_n USING p_estado`"
+      - pattern: '\|\|\s*p_estado'
+        hint: "No concatenes p_estado"
+        forbid: true
+  - id: d4
+    lang: plsql
+    title: "Logger con transacción autónoma"
+    timeLimit: 180
+    prompt: |
+      Crea `log_error(p_msg IN VARCHAR2)` que inserte en `errores_log(mensaje, creado_en)` y **persista aunque
+      el llamador haga ROLLBACK**.
+    solution: |
+      CREATE OR REPLACE PROCEDURE log_error (p_msg IN VARCHAR2) IS
+        PRAGMA AUTONOMOUS_TRANSACTION;
+      BEGIN
+        INSERT INTO errores_log (mensaje, creado_en) VALUES (p_msg, SYSTIMESTAMP);
+        COMMIT;
+      END log_error;
+      /
+    checks:
+      - pattern: 'PROCEDURE\s+log_error'
+        hint: "Crea el procedimiento `log_error`"
+      - pattern: 'PRAGMA\s+AUTONOMOUS_TRANSACTION'
+        hint: "`PRAGMA AUTONOMOUS_TRANSACTION;` en la sección declarativa"
+      - pattern: 'INSERT\s+INTO\s+errores_log'
+        hint: "Inserta en errores_log"
+      - pattern: '\bCOMMIT\s*;'
+        hint: "Termina la transacción autónoma con COMMIT"
+
+snippets:
+  - id: n1
+    title: "FORALL con SAVE EXCEPTIONS"
+    lang: plsql
+    code: |
+      DECLARE
+        e_bulk EXCEPTION;
+        PRAGMA EXCEPTION_INIT(e_bulk, -24381);
+      BEGIN
+        FORALL i IN 1 .. l_rows.COUNT SAVE EXCEPTIONS
+          INSERT INTO destino VALUES l_rows(i);
+      EXCEPTION
+        WHEN e_bulk THEN
+          FOR j IN 1 .. SQL%BULK_EXCEPTIONS.COUNT LOOP
+            DBMS_OUTPUT.PUT_LINE('Fila ' || SQL%BULK_EXCEPTIONS(j).ERROR_INDEX || ': ' ||
+                                 SQLERRM(-SQL%BULK_EXCEPTIONS(j).ERROR_CODE));
+          END LOOP;
+      END;
+  - id: n2
+    title: "Compound trigger (evita mutating table)"
+    lang: plsql
+    code: |
+      CREATE OR REPLACE TRIGGER trg_lineas_total
+        FOR INSERT OR UPDATE OR DELETE ON lineas COMPOUND TRIGGER
+        TYPE t_ids IS TABLE OF pedidos.id%TYPE INDEX BY PLS_INTEGER;
+        g_ids t_ids;
+      AFTER EACH ROW IS
+      BEGIN
+        g_ids(g_ids.COUNT + 1) := NVL(:NEW.pedido_id, :OLD.pedido_id);
+      END AFTER EACH ROW;
+      AFTER STATEMENT IS
+      BEGIN
+        FORALL i IN 1 .. g_ids.COUNT
+          UPDATE pedidos p SET total = (SELECT NVL(SUM(importe), 0) FROM lineas l WHERE l.pedido_id = p.id)
+           WHERE p.id = g_ids(i);
+      END AFTER STATEMENT;
+      END trg_lineas_total;
+      /
+  - id: n3
+    title: "Función pipelined"
+    lang: plsql
+    code: |
+      CREATE OR REPLACE TYPE t_num_tab AS TABLE OF NUMBER;
+      /
+      CREATE OR REPLACE FUNCTION rango (p_desde NUMBER, p_hasta NUMBER) RETURN t_num_tab PIPELINED IS
+      BEGIN
+        FOR i IN p_desde .. p_hasta LOOP
+          PIPE ROW (i);
+        END LOOP;
+        RETURN;
+      END;
+      /
+      SELECT COLUMN_VALUE FROM TABLE(rango(1, 5));
+  - id: n4
+    title: "Leer un SYS_REFCURSOR desde C# (ODP.NET)"
+    lang: csharp
+    code: |
+      await using var cmd = new OracleCommand("pedidos_cliente", conn) { CommandType = CommandType.StoredProcedure };
+      cmd.Parameters.Add("rc", OracleDbType.RefCursor, ParameterDirection.ReturnValue);
+      cmd.Parameters.Add("p_cliente_id", OracleDbType.Int32).Value = 42;
+      await using var reader = await cmd.ExecuteReaderAsync(ct);
+      while (await reader.ReadAsync(ct)) Console.WriteLine(reader.GetDecimal(1));
+
+shortcuts:
+  - tool: "SQLcl"
+    keys: "set sqlformat ansiconsole"
+    action: "Salida tabular legible en consola"
+  - tool: "SQLcl"
+    keys: "history"
+    action: "Muestra el historial de comandos ejecutados en SQLcl"

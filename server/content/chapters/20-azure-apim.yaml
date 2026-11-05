@@ -1,0 +1,353 @@
+id: ch20
+number: 20
+title: "Azure API Management (APIM)"
+level: "Senior"
+track: api
+summary: "Arquitectura de APIM, productos y suscripciones, políticas XML y expresiones C#, validación de JWT, límites de uso, versiones, revisiones y operación."
+objectives:
+  - "Explicar el flujo de una petición por el gateway y sus secciones de política."
+  - "Proteger una API con validate-jwt y rate limiting por clave."
+  - "Versionar y desplegar APIs en APIM sin romper a los consumidores."
+
+sections:
+  - id: s1
+    title: "Arquitectura y conceptos"
+    body: |
+      APIM es un **gateway de APIs gestionado**. Componentes:
+
+      - **Gateway**: recibe las peticiones de los clientes, aplica políticas y las reenvía al backend.
+      - **Plano de gestión**: configuración (portal de Azure, ARM/Bicep, Terraform, CLI).
+      - **Portal del desarrollador**: documentación, pruebas y alta de suscripciones para consumidores.
+
+      Conceptos:
+
+      - **API** → conjunto de **operaciones** (verbo + plantilla de URL) que apuntan a un **backend**.
+      - **Producto**: agrupa APIs y define cómo se consumen (requiere suscripción, aprobación, cuotas).
+      - **Suscripción**: da una **clave** (primaria y secundaria, para rotarlas sin cortes). Se envía en la cabecera **`Ocp-Apim-Subscription-Key`** (o en el query `subscription-key`). Su ámbito puede ser un producto, una API o todas.
+      - **Named values**: configuración reutilizable `{{nombre}}` en las políticas; pueden referenciar secretos de **Key Vault**.
+      - **Backends**: definición del servicio destino (URL, credenciales, circuit breaker, pools con balanceo).
+
+      Sin clave válida, el gateway responde **401** (*Access denied due to missing subscription key*). Al superar un `rate-limit` responde **429** con `Retry-After`.
+
+      Niveles (tiers): Consumption (serverless, pago por llamada), Developer (sin SLA, para pruebas), Basic, Standard, Premium (multirregión, VNet, zonas de disponibilidad) y la familia **v2** (Basic v2, Standard v2, Premium v2). Existe también el **self-hosted gateway** (contenedor en tu infraestructura).
+
+  - id: s2
+    title: "Políticas: secciones, ámbitos y expresiones"
+    body: |
+      Las políticas son XML con cuatro secciones, ejecutadas en orden:
+
+      ```xml
+      <policies>
+        <inbound>   <!-- petición del cliente, antes de ir al backend -->
+          <base />
+          <set-header name="X-Request-Id" exists-action="skip">
+            <value>@(context.RequestId.ToString())</value>
+          </set-header>
+        </inbound>
+        <backend>   <!-- reenvío al backend -->
+          <base />
+        </backend>
+        <outbound>  <!-- respuesta, antes de devolverla al cliente -->
+          <base />
+          <set-header name="X-Powered-By" exists-action="delete" />
+        </outbound>
+        <on-error>  <!-- si algo falla en cualquier sección -->
+          <base />
+        </on-error>
+      </policies>
+      ```
+
+      **Ámbitos** (de más general a más específico): **global** (todas las APIs) → **producto** → **API** → **operación**. `<base />` indica **dónde se ejecuta la política del ámbito padre**: si lo quitas, no heredas.
+
+      **Expresiones de política**: C# dentro de `@(...)` (una expresión) o `@{ ... }` (bloque con `return`), con acceso a `context`:
+
+      ```xml
+      <set-variable name="userId" value="@(context.Request.Headers.GetValueOrDefault("X-User", "anon"))" />
+      <choose>
+        <when condition="@(context.Request.Method == "DELETE" && !context.User.Groups.Any(g => g.Name == "Admins"))">
+          <return-response><set-status code="403" reason="Forbidden" /></return-response>
+        </when>
+      </choose>
+      ```
+
+      Políticas frecuentes: `set-header`, `set-query-parameter`, `rewrite-uri`, `set-backend-service`, `cors`, `cache-lookup`/`cache-store`, `mock-response`, `retry`, `send-request`, `return-response`, `set-body`, `json-to-xml`, `log-to-eventhub`, `authentication-managed-identity`.
+
+  - id: s3
+    title: "Seguridad: JWT, identidad administrada y límites"
+    body: |
+      **Validar el token OAuth en el gateway** antes de que llegue al backend:
+
+      ```xml
+      <inbound>
+        <base />
+        <validate-jwt header-name="Authorization" failed-validation-httpcode="401"
+                      failed-validation-error-message="Token inválido" require-scheme="Bearer">
+          <openid-config url="https://login.microsoftonline.com/{{tenant-id}}/v2.0/.well-known/openid-configuration" />
+          <audiences><audience>api://pedidos</audience></audiences>
+          <issuers><issuer>https://login.microsoftonline.com/{{tenant-id}}/v2.0</issuer></issuers>
+          <required-claims>
+            <claim name="scp" match="any" separator=" "><value>pedidos.read</value></claim>
+          </required-claims>
+        </validate-jwt>
+      </inbound>
+      ```
+
+      Para Entra ID también existe `validate-azure-ad-token`, más concisa. El backend debe **seguir validando** el token (defensa en profundidad) o aceptar solo tráfico desde APIM (VNet / IP / mTLS).
+
+      **Llamar al backend con identidad administrada** (sin secretos):
+
+      ```xml
+      <authentication-managed-identity resource="api://backend-pedidos" />
+      ```
+
+      **Límites de uso**:
+
+      - `rate-limit`: llamadas por ventana **por suscripción**.
+      - `rate-limit-by-key`: por una clave arbitraria (IP, claim del usuario, cliente) con `counter-key`.
+      - `quota` / `quota-by-key`: volumen total en un periodo largo (llamadas o ancho de banda).
+
+      ```xml
+      <rate-limit-by-key calls="100" renewal-period="60"
+                         counter-key="@(context.Request.IpAddress)"
+                         increment-condition="@(context.Response.StatusCode < 500)" />
+      ```
+
+  - id: s4
+    title: "Versiones, revisiones, DevOps y observabilidad"
+    body: |
+      - **Versiones**: cambios **incompatibles** (breaking). Esquema por **ruta** (`/v2/pedidos`), **cabecera** (`Api-Version: v2`) o **query** (`?api-version=v2`). Conviven y el consumidor elige.
+      - **Revisiones**: cambios **compatibles** sobre la misma versión. Se prueban con `;rev=3` en la URL y luego se hacen **actuales** (con changelog) sin cortar el tráfico.
+
+      **APIOps**: la configuración de APIM como código (OpenAPI + políticas XML en el repo, desplegadas con Bicep/Terraform o las herramientas APIOps) y promovida entre entornos por pipelines. Importa APIs desde **OpenAPI** para mantener contrato y documentación sincronizados.
+
+      **Observabilidad**: integración con **Application Insights** (trazas de extremo a extremo, dependencias) y **Azure Monitor** (métricas, logs de gateway). Para depurar una política en tiempo real usa el **trace** de la consola de pruebas.
+
+      ```bash
+      # Probar una API publicada en APIM
+      curl -i "https://mi-apim.azure-api.net/pedidos/v1/pedidos/42" \
+        -H "Ocp-Apim-Subscription-Key: $APIM_KEY" \
+        -H "Authorization: Bearer $TOKEN"
+      ```
+
+      Errores típicos: olvidar `<base />` y perder políticas globales (CORS, logging), poner el `rate-limit` en `outbound` (ya llegó al backend), exponer claves de suscripción en el frontend como si fueran secretos (identifican, no autentican usuarios), y no rotar las claves primaria/secundaria.
+
+cards:
+  - id: c1
+    front: "¿Qué cabecera lleva la clave de suscripción de APIM?"
+    back: "`Ocp-Apim-Subscription-Key` (o el query `subscription-key`)."
+  - id: c2
+    front: "Las 4 secciones de una política de APIM."
+    back: "`inbound` (petición), `backend` (reenvío), `outbound` (respuesta) y `on-error` (errores)."
+  - id: c3
+    front: "¿Qué hace `<base />` en una política?"
+    back: "Ejecuta en ese punto la política del ámbito padre (global → producto → API → operación). Sin él, no se hereda."
+  - id: c4
+    front: "Diferencia entre `rate-limit` y `rate-limit-by-key`."
+    back: "`rate-limit` cuenta por suscripción; `rate-limit-by-key` cuenta por una clave calculada con una expresión (IP, usuario, claim...)."
+  - id: c5
+    front: "Diferencia entre versión y revisión en APIM."
+    back: "Versión: cambios incompatibles, conviven (v1, v2). Revisión: cambios compatibles en la misma versión, se prueban con `;rev=n` y se hacen actuales sin cortar."
+  - id: c6
+    front: "¿Qué valida `validate-jwt`?"
+    back: "Firma (claves del openid-config/JWKS), expiración, audiencias, emisores y claims requeridos; si falla devuelve el código configurado (normalmente 401)."
+  - id: c7
+    front: "¿Cómo llama APIM a un backend protegido sin guardar secretos?"
+    back: "Con la política `authentication-managed-identity`, que obtiene un token de Entra ID con la identidad administrada de APIM."
+  - id: c8
+    front: "¿Qué lenguaje se usa en las expresiones de política?"
+    back: "C# (un subconjunto), dentro de `@(...)` o `@{ ... }`, con acceso al objeto `context`."
+  - id: c9
+    front: "¿Qué son los named values?"
+    back: "Valores de configuración reutilizables en políticas con `{{nombre}}`; pueden ser secretos o referencias a Key Vault."
+
+questions:
+  - id: q1
+    type: mcq
+    prompt: "Un cliente llama a una API de un producto que requiere suscripción sin enviar la clave. ¿Qué responde APIM?"
+    options: ["200", "401", "403", "429"]
+    answer: 1
+    explanation: "401 Access denied due to missing subscription key."
+  - id: q2
+    type: mcq
+    prompt: "¿En qué sección pondrías `validate-jwt` y `rate-limit-by-key`?"
+    options: ["outbound", "backend", "inbound", "on-error"]
+    answer: 2
+    explanation: "Deben ejecutarse antes de reenviar al backend, en inbound."
+  - id: q3
+    type: tf
+    prompt: "Si en la política de una API eliminas `<base />` de `inbound`, las políticas globales de inbound (por ejemplo CORS) dejan de aplicarse a esa API."
+    answer: true
+    explanation: "<base /> es lo que inserta la política del ámbito padre."
+  - id: q4
+    type: mcq
+    prompt: "Vas a cambiar el formato de respuesta de forma incompatible. ¿Qué usas en APIM?"
+    options: ["Una nueva revisión", "Una nueva versión", "Un named value", "Una nueva suscripción"]
+    answer: 1
+    explanation: "Los cambios incompatibles requieren una versión nueva para que los consumidores migren cuando puedan."
+  - id: q5
+    type: fill
+    prompt: "Completa la política que limita por IP: `<rate-limit-by-key calls=\"100\" renewal-period=\"60\" ______=\"@(context.Request.IpAddress)\" />`"
+    answer: ["counter-key"]
+    explanation: "counter-key define la clave por la que se cuentan las llamadas."
+  - id: q6
+    type: mcq
+    prompt: "¿Qué código devuelve APIM cuando se supera un rate-limit?"
+    options: ["403", "429", "503", "400"]
+    answer: 1
+    explanation: "429 Too Many Requests, normalmente con la cabecera Retry-After."
+  - id: q7
+    type: tf
+    prompt: "Una clave de suscripción de APIM en el JavaScript de una SPA pública es un secreto que autentica al usuario."
+    answer: false
+    explanation: "En un cliente público cualquiera puede verla; identifica a la aplicación consumidora. La autenticación del usuario debe hacerse con OAuth/JWT."
+  - id: q8
+    type: mcq
+    prompt: "¿Qué expresión de política obtiene la cabecera `X-Tenant` o \"default\" si no existe?"
+    options:
+      - "@(context.Request.Headers[\"X-Tenant\"])"
+      - "@(context.Request.Headers.GetValueOrDefault(\"X-Tenant\", \"default\"))"
+      - "{{X-Tenant}}"
+      - "@(request.header.X-Tenant ?? \"default\")"
+    answer: 1
+    explanation: "GetValueOrDefault evita la excepción si la cabecera no existe. {{...}} es para named values."
+
+drills:
+  - id: d1
+    lang: xml
+    title: "Política: validate-jwt + rate limit por usuario"
+    timeLimit: 300
+    prompt: |
+      Escribe una política de API que en **inbound** herede la política padre, valide el JWT de Entra ID
+      (openid-config con `{{tenant-id}}`, audiencia `api://pedidos`) devolviendo **401** si falla, y aplique
+      **rate-limit-by-key** de 60 llamadas por minuto usando como clave la IP del cliente.
+    starter: |
+      <policies>
+        <inbound>
+        </inbound>
+        <backend><base /></backend>
+        <outbound><base /></outbound>
+        <on-error><base /></on-error>
+      </policies>
+    solution: |
+      <policies>
+        <inbound>
+          <base />
+          <validate-jwt header-name="Authorization" failed-validation-httpcode="401" require-scheme="Bearer">
+            <openid-config url="https://login.microsoftonline.com/{{tenant-id}}/v2.0/.well-known/openid-configuration" />
+            <audiences>
+              <audience>api://pedidos</audience>
+            </audiences>
+          </validate-jwt>
+          <rate-limit-by-key calls="60" renewal-period="60" counter-key="@(context.Request.IpAddress)" />
+        </inbound>
+        <backend><base /></backend>
+        <outbound><base /></outbound>
+        <on-error><base /></on-error>
+      </policies>
+    checks:
+      - pattern: '<inbound>\s*<base\s*/>'
+        hint: "Empieza inbound con `<base />`"
+      - pattern: '<validate-jwt[^>]*header-name="Authorization"'
+        hint: "`<validate-jwt header-name=\"Authorization\" ...>`"
+      - pattern: 'failed-validation-httpcode="401"'
+        hint: "`failed-validation-httpcode=\"401\"`"
+      - pattern: '<openid-config\s+url="[^"]*\{\{tenant-id\}\}[^"]*openid-configuration"'
+        hint: "openid-config con `{{tenant-id}}` y `.well-known/openid-configuration`"
+      - pattern: '<audience>\s*api://pedidos\s*</audience>'
+        hint: "Audiencia `api://pedidos`"
+      - pattern: '<rate-limit-by-key[^>]*calls="60"[^>]*renewal-period="60"'
+        hint: "`calls=\"60\" renewal-period=\"60\"`"
+      - pattern: 'counter-key="@\(\s*context\.Request\.IpAddress\s*\)"'
+        hint: "`counter-key=\"@(context.Request.IpAddress)\"`"
+  - id: d2
+    lang: xml
+    title: "Reescritura y backend con identidad administrada"
+    timeLimit: 240
+    prompt: |
+      En inbound (tras `<base />`), redirige la petición al backend `https://pedidos-internal.azurewebsites.net`,
+      reescribe la URL a `/internal/pedidos`, añade la cabecera `X-Origen: apim` y autentícate con la
+      **identidad administrada** para el recurso `api://backend-pedidos`.
+    solution: |
+      <inbound>
+        <base />
+        <set-backend-service base-url="https://pedidos-internal.azurewebsites.net" />
+        <rewrite-uri template="/internal/pedidos" />
+        <set-header name="X-Origen" exists-action="override">
+          <value>apim</value>
+        </set-header>
+        <authentication-managed-identity resource="api://backend-pedidos" />
+      </inbound>
+    checks:
+      - pattern: '<base\s*/>'
+        hint: "Incluye `<base />`"
+      - pattern: '<set-backend-service\s+base-url="https://pedidos-internal\.azurewebsites\.net"'
+        hint: "`<set-backend-service base-url=\"...\" />`"
+      - pattern: '<rewrite-uri\s+template="/internal/pedidos"'
+        hint: "`<rewrite-uri template=\"/internal/pedidos\" />`"
+      - pattern: '<set-header\s+name="X-Origen"'
+        hint: "`<set-header name=\"X-Origen\" ...>`"
+      - pattern: '<value>\s*apim\s*</value>'
+        hint: "Valor `apim`"
+      - pattern: '<authentication-managed-identity\s+resource="api://backend-pedidos"'
+        hint: "`<authentication-managed-identity resource=\"api://backend-pedidos\" />`"
+
+snippets:
+  - id: n1
+    title: "CORS global"
+    lang: xml
+    code: |
+      <cors allow-credentials="true">
+        <allowed-origins><origin>https://app.midominio.com</origin></allowed-origins>
+        <allowed-methods preflight-result-max-age="300"><method>GET</method><method>POST</method></allowed-methods>
+        <allowed-headers><header>Authorization</header><header>Content-Type</header></allowed-headers>
+      </cors>
+  - id: n2
+    title: "Caché de respuestas GET"
+    lang: xml
+    code: |
+      <inbound>
+        <base />
+        <cache-lookup vary-by-developer="false" vary-by-developer-groups="false">
+          <vary-by-query-parameter>categoria</vary-by-query-parameter>
+        </cache-lookup>
+      </inbound>
+      <outbound>
+        <base />
+        <cache-store duration="300" />
+      </outbound>
+  - id: n3
+    title: "Mock mientras el backend no existe"
+    lang: xml
+    code: |
+      <inbound>
+        <base />
+        <mock-response status-code="200" content-type="application/json" />
+      </inbound>
+  - id: n4
+    title: "Respuesta de error uniforme en on-error"
+    lang: xml
+    code: |
+      <on-error>
+        <base />
+        <return-response>
+          <set-status code="@(context.Response.StatusCode)" reason="Error" />
+          <set-header name="Content-Type" exists-action="override"><value>application/problem+json</value></set-header>
+          <set-body>@{
+            return new JObject(
+              new JProperty("title", context.LastError.Message),
+              new JProperty("status", context.Response.StatusCode),
+              new JProperty("traceId", context.RequestId.ToString())
+            ).ToString();
+          }</set-body>
+        </return-response>
+      </on-error>
+  - id: n5
+    title: "Azure CLI para APIM"
+    lang: bash
+    code: |
+      az apim list -o table
+      az apim api list -g RG -n mi-apim -o table
+      az apim api import -g RG -n mi-apim --api-id pedidos --path pedidos \
+        --specification-format OpenApi --specification-path ./openapi.yaml
+      az apim nv create -g RG -n mi-apim --named-value-id tenant-id --display-name tenant-id --value "<guid>"
+

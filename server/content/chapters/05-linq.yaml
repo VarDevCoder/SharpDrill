@@ -2,6 +2,7 @@ id: ch05
 number: 5
 title: "LINQ e iteradores en profundidad"
 level: "Senior"
+track: csharp
 summary: "Ejecución diferida, yield, IEnumerable vs IQueryable, árboles de expresión y trampas de rendimiento."
 objectives:
   - "Predecir cuándo se ejecuta realmente una consulta LINQ."
@@ -185,3 +186,73 @@ questions:
     prompt: "`Single()` lanza excepción tanto si la secuencia está vacía como si tiene más de un elemento."
     answer: true
     explanation: "Esa es precisamente su semántica: garantizar exactamente un elemento."
+
+drills:
+  - id: d1
+    lang: csharp
+    title: "Ventas por categoría con LINQ"
+    timeLimit: 180
+    prompt: |
+      Dada `List<Venta> ventas` con `Categoria` (string) e `Importe` (decimal), obtén una lista con
+      **Categoria** y **Total**, ordenada por total descendente, quedándote con las 3 primeras.
+    starter: |
+      record Venta(string Categoria, decimal Importe);
+
+      var top = ventas
+          // ...
+    solution: |
+      var top = ventas
+          .GroupBy(v => v.Categoria)
+          .Select(g => new { Categoria = g.Key, Total = g.Sum(v => v.Importe) })
+          .OrderByDescending(x => x.Total)
+          .Take(3)
+          .ToList();
+    checks:
+      - pattern: '\.GroupBy\s*\(\s*\w+\s*=>\s*\w+\.Categoria\s*\)'
+        hint: "Agrupa con `GroupBy(v => v.Categoria)`"
+      - pattern: '\.Sum\s*\(\s*\w+\s*=>\s*\w+\.Importe\s*\)'
+        hint: "Suma `Importe` dentro de cada grupo"
+      - pattern: '\.OrderByDescending\s*\('
+        hint: "Ordena con `OrderByDescending`"
+      - pattern: '\.Take\s*\(\s*3\s*\)'
+        hint: "Quédate con 3: `Take(3)`"
+      - pattern: '\.(ToList|ToArray)\s*\(\s*\)'
+        hint: "Materializa el resultado"
+    explanation: "GroupBy + Select con agregados es el patrón clásico; materializar evita re-enumerar la consulta."
+
+snippets:
+  - id: n1
+    title: "Recetas LINQ (.NET 6–9)"
+    lang: csharp
+    code: |
+      var porId     = pedidos.ToDictionary(p => p.Id);
+      var lookup    = lineas.ToLookup(l => l.PedidoId);       // 1 clave → N valores
+      var lotes     = ids.Chunk(500);                        // procesar por lotes
+      var unicos    = clientes.DistinctBy(c => c.Email);
+      var masCaro   = productos.MaxBy(p => p.Precio);
+      var conteo    = ventas.CountBy(v => v.Pais);            // .NET 9
+      foreach (var (i, x) in lista.Index()) { }              // .NET 9
+  - id: n2
+    title: "Validación anticipada en un iterador"
+    lang: csharp
+    code: |
+      public static IEnumerable<T> Pares<T>(IEnumerable<T> src)
+      {
+          ArgumentNullException.ThrowIfNull(src);
+          return Iter(src);
+          static IEnumerable<T> Iter(IEnumerable<T> s) { foreach (var x in s) yield return x; }
+      }
+
+shortcuts:
+  - tool: "Visual Studio (snippets)"
+    keys: "prop + Tab Tab"
+    action: "Propiedad automática"
+  - tool: "Visual Studio (snippets)"
+    keys: "ctor + Tab Tab"
+    action: "Constructor"
+  - tool: "Visual Studio (snippets)"
+    keys: "cw + Tab Tab"
+    action: "Console.WriteLine()"
+  - tool: "Visual Studio (snippets)"
+    keys: "foreach / try / switch + Tab Tab"
+    action: "Bloques foreach, try-catch y switch"

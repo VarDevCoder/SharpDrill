@@ -2,6 +2,7 @@ id: ch10
 number: 10
 title: "Reflexión, atributos y source generators"
 level: "Senior"
+track: csharp
 summary: "Coste de la reflexión, cómo acelerarla, atributos personalizados, generadores de código Roslyn y compatibilidad con trimming y Native AOT."
 objectives:
   - "Medir y mitigar el coste de la reflexión."
@@ -178,3 +179,35 @@ questions:
       - "Con Reflection.Emit siempre"
     answer: 1
     explanation: "El compilador emite call sites del DLR que enlazan en runtime y cachean el resultado por tipo."
+
+snippets:
+  - id: n1
+    title: "Regex y JSON generados en compilación (AOT-friendly)"
+    lang: csharp
+    code: |
+      public static partial class Validadores
+      {
+          [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.IgnoreCase)]
+          public static partial Regex Email();
+      }
+
+      [JsonSerializable(typeof(Pedido))]
+      internal partial class AppJson : JsonSerializerContext { }
+      var json = JsonSerializer.Serialize(pedido, AppJson.Default.Pedido);
+  - id: n2
+    title: "Logging de alto rendimiento"
+    lang: csharp
+    code: |
+      public static partial class Log
+      {
+          [LoggerMessage(Level = LogLevel.Information, Message = "Pedido {Id} creado por {Usuario}")]
+          public static partial void PedidoCreado(this ILogger logger, int id, string usuario);
+      }
+      logger.PedidoCreado(42, "ana");
+  - id: n3
+    title: "Delegado compilado en vez de MethodInfo.Invoke"
+    lang: csharp
+    code: |
+      var getter = typeof(Pedido).GetProperty(nameof(Pedido.Total))!
+          .GetMethod!.CreateDelegate<Func<Pedido, decimal>>();
+      decimal total = getter(pedido); // casi tan rápido como acceso directo
