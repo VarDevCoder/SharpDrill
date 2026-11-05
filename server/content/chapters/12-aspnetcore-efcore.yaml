@@ -1,0 +1,187 @@
+id: ch12
+number: 12
+title: "ASP.NET Core y EF Core en producción"
+level: "Senior"
+summary: "Pipeline de middleware, minimal APIs, HttpClientFactory, resiliencia, EF Core: tracking, N+1, consultas eficientes y concurrencia optimista."
+objectives:
+  - "Ordenar correctamente el pipeline de middleware."
+  - "Evitar socket exhaustion y problemas de DNS con HttpClient."
+  - "Escribir consultas EF Core eficientes y seguras ante concurrencia."
+
+sections:
+  - id: s1
+    title: "Pipeline de middleware y minimal APIs"
+    body: |
+      Cada middleware recibe el `HttpContext` y decide si llama a `next()`. El **orden de registro es el orden de ejecución** (y el inverso a la vuelta).
+
+      ```csharp
+      var app = builder.Build();
+      app.UseExceptionHandler();   // primero: captura errores de todo lo que sigue
+      app.UseHttpsRedirection();
+      app.UseStaticFiles();        // cortocircuita para archivos estáticos
+      app.UseRouting();
+      app.UseCors();
+      app.UseAuthentication();     // ¿quién eres?
+      app.UseAuthorization();      // ¿puedes hacer esto? → necesita la identidad anterior
+      app.UseRateLimiter();
+      app.MapGroup("/api/pedidos").MapPedidos().RequireAuthorization();
+      app.Run();
+      ```
+
+      Si pones `UseAuthorization` antes de `UseAuthentication`, el usuario siempre es anónimo para las políticas.
+
+      **Minimal APIs**: `MapGet/MapPost` con *parameter binding* automático, `TypedResults` para respuestas tipadas (mejor OpenAPI y testeo) y **endpoint filters** para validación transversal. `MapGroup` agrupa prefijos y políticas.
+
+  - id: s2
+    title: "HttpClient bien usado y resiliencia"
+    body: |
+      Dos errores opuestos:
+
+      - `new HttpClient()` por petición → cada instancia abre conexiones nuevas; al disponerse quedan sockets en `TIME_WAIT` → **socket exhaustion**.
+      - Un `HttpClient` estático eterno → reutiliza conexiones, pero **no detecta cambios de DNS**.
+
+      Soluciones:
+
+      ```csharp
+      // 1) IHttpClientFactory: recicla los handlers periódicamente
+      builder.Services.AddHttpClient<GitHubClient>(c => c.BaseAddress = new("https://api.github.com"))
+          .AddStandardResilienceHandler(); // Microsoft.Extensions.Http.Resilience (Polly v8)
+
+      // 2) Singleton con SocketsHttpHandler y vida de conexión limitada
+      var http = new HttpClient(new SocketsHttpHandler
+      {
+          PooledConnectionLifetime = TimeSpan.FromMinutes(2)
+      });
+      ```
+
+      El *standard resilience handler* añade: rate limiter, timeout total, reintentos con backoff exponencial y jitter, circuit breaker y timeout por intento. Solo reintenta operaciones **idempotentes** o con clave de idempotencia.
+
+  - id: s3
+    title: "EF Core: tracking y el problema N+1"
+    body: |
+      El `DbContext` es una **unidad de trabajo** con *change tracker*: cada entidad consultada se rastrea para detectar cambios en `SaveChanges()`. Es **scoped y no es thread-safe** (no lances dos consultas concurrentes sobre el mismo contexto).
+
+      - Lecturas: `AsNoTracking()` (o `QueryTrackingBehavior.NoTracking`) evita el coste del tracking.
+      - Proyecta solo lo necesario con `Select` a DTOs: menos columnas, sin tracking.
+
+      **N+1**: una consulta para la lista y una por cada elemento al acceder a una navegación (típico con lazy loading).
+
+      ```csharp
+      // N+1: 1 consulta de pedidos + 1 por pedido para las líneas
+      foreach (var p in db.Pedidos.ToList()) total += p.Lineas.Sum(l => l.Importe);
+
+      // Una consulta, agregada en SQL
+      var totales = await db.Pedidos
+          .Select(p => new { p.Id, Total = p.Lineas.Sum(l => l.Importe) })
+          .ToListAsync(ct);
+      ```
+
+      `Include` hace JOIN; con varias colecciones genera una *explosión cartesiana*: usa `AsSplitQuery()`.
+
+  - id: s4
+    title: "Escrituras masivas, concurrencia y migraciones"
+    body: |
+      **ExecuteUpdate/ExecuteDelete** (EF Core 7+) ejecutan un UPDATE/DELETE directo, sin cargar entidades:
+
+      ```csharp
+      await db.Sesiones.Where(s => s.Expira < ahora).ExecuteDeleteAsync(ct);
+      ```
+
+      Ojo: **no** pasan por el change tracker; las entidades ya cargadas no se actualizan.
+
+      **Concurrencia optimista**: marca una columna como token (`[Timestamp] public byte[] Version` en SQL Server, o `IsConcurrencyToken()`). EF añade `WHERE Version = @original` al UPDATE; si no afecta filas, lanza `DbUpdateConcurrencyException` y decides: reintentar, fusionar o informar al usuario.
+
+      Otras prácticas:
+
+      - **Consultas compiladas** (`EF.CompileAsyncQuery`) para consultas muy calientes.
+      - Usa siempre parámetros: `FromSql($"... {id}")` parametriza la interpolación; `FromSqlRaw` con concatenación es vulnerable a **inyección SQL**.
+      - Migraciones: genera scripts idempotentes (`dotnet ef migrations script --idempotent`) o *migration bundles* para CI/CD, en lugar de `Database.Migrate()` al arrancar con varias réplicas.
+
+cards:
+  - id: c1
+    front: "¿Por qué UseAuthentication debe ir antes que UseAuthorization?"
+    back: "La autorización evalúa políticas sobre `HttpContext.User`, que establece el middleware de autenticación. En orden inverso el usuario siempre es anónimo."
+  - id: c2
+    front: "¿Qué es el socket exhaustion con HttpClient?"
+    back: "Crear y disponer HttpClient por petición deja conexiones en TIME_WAIT; bajo carga se agotan los puertos disponibles."
+  - id: c3
+    front: "¿Qué problema tiene un HttpClient estático de por vida y cómo se resuelve?"
+    back: "No respeta cambios de DNS porque las conexiones nunca se renuevan. Se resuelve con `SocketsHttpHandler.PooledConnectionLifetime` o IHttpClientFactory."
+  - id: c4
+    front: "¿Es thread-safe un DbContext?"
+    back: "No. Es una unidad de trabajo scoped; usar el mismo contexto desde operaciones concurrentes produce excepciones o corrupción del tracker."
+  - id: c5
+    front: "¿Qué es el problema N+1?"
+    back: "Una consulta para obtener N entidades y luego N consultas adicionales para cargar una relación de cada una. Se evita con proyecciones, Include o agregados en SQL."
+  - id: c6
+    front: "¿Qué hace AsSplitQuery()?"
+    back: "Divide una consulta con varios Include de colecciones en varias consultas SQL, evitando la explosión cartesiana de un único JOIN."
+  - id: c7
+    front: "¿Qué excepción indica un conflicto de concurrencia optimista en EF Core?"
+    back: "`DbUpdateConcurrencyException`: el UPDATE/DELETE con el token original no afectó ninguna fila."
+  - id: c8
+    front: "Diferencia de seguridad entre FromSql y FromSqlRaw con interpolación."
+    back: "`FromSql($\"...{x}\")` convierte las interpolaciones en parámetros SQL. `FromSqlRaw` con concatenación de strings permite inyección SQL."
+
+questions:
+  - id: q1
+    type: mcq
+    prompt: "Un endpoint con `[Authorize]` siempre devuelve 401 aunque el token sea válido. El pipeline es: UseRouting → UseAuthorization → UseAuthentication. ¿Causa?"
+    options:
+      - "El token está mal firmado"
+      - "El orden: la autorización se evalúa antes de autenticar al usuario"
+      - "Falta UseStaticFiles"
+      - "Minimal APIs no soportan autorización"
+    answer: 1
+    explanation: "La autenticación debe ejecutarse antes para poblar HttpContext.User."
+  - id: q2
+    type: tf
+    prompt: "Crear `using var client = new HttpClient();` en cada petición es la práctica recomendada para evitar problemas de DNS."
+    answer: false
+    explanation: "Provoca socket exhaustion. La recomendación es IHttpClientFactory o un singleton con PooledConnectionLifetime."
+  - id: q3
+    type: mcq
+    prompt: "¿Cuántas consultas SQL ejecuta esto con lazy loading activado y 100 pedidos?"
+    code: |
+      var pedidos = db.Pedidos.ToList();
+      foreach (var p in pedidos)
+          Console.WriteLine(p.Lineas.Count);
+    options: ["1", "2", "101", "100"]
+    answer: 2
+    explanation: "1 consulta para los pedidos y 1 por cada pedido al acceder a Lineas: el clásico N+1."
+  - id: q4
+    type: fill
+    prompt: "Completa: para leer entidades sin que el change tracker las rastree se encadena `______()` a la consulta."
+    answer: ["AsNoTracking", "AsNoTrackingWithIdentityResolution"]
+    explanation: "AsNoTracking reduce memoria y CPU en consultas de solo lectura."
+  - id: q5
+    type: mcq
+    prompt: "¿Qué ocurre con las entidades ya cargadas en el contexto tras `ExecuteUpdateAsync`?"
+    options:
+      - "Se actualizan automáticamente"
+      - "No se actualizan: ExecuteUpdate no pasa por el change tracker"
+      - "Se eliminan del contexto"
+      - "Lanza excepción si hay entidades cargadas"
+    answer: 1
+    explanation: "Es un UPDATE directo en la base de datos; el estado en memoria queda desincronizado."
+  - id: q6
+    type: mcq
+    prompt: "¿Cuál es vulnerable a inyección SQL?"
+    options:
+      - "db.Users.FromSql($\"SELECT * FROM Users WHERE Name = {name}\")"
+      - "db.Users.FromSqlRaw(\"SELECT * FROM Users WHERE Name = '\" + name + \"'\")"
+      - "db.Users.Where(u => u.Name == name)"
+      - "db.Users.FromSqlRaw(\"SELECT * FROM Users WHERE Name = {0}\", name)"
+    answer: 1
+    explanation: "Concatenar strings mete la entrada del usuario directamente en el SQL. Las otras opciones parametrizan."
+  - id: q7
+    type: tf
+    prompt: "Ejecutar `await Task.WhenAll(db.A.ToListAsync(), db.B.ToListAsync())` sobre el mismo DbContext es seguro."
+    answer: false
+    explanation: "DbContext no admite operaciones concurrentes; EF lanza InvalidOperationException. Usa contextos distintos (IDbContextFactory) o await secuencial."
+  - id: q8
+    type: mcq
+    prompt: "¿Qué estrategia NO forma parte del standard resilience handler de Microsoft.Extensions.Http.Resilience?"
+    options: ["Reintentos con backoff", "Circuit breaker", "Timeout por intento", "Caché distribuida de respuestas"]
+    answer: 3
+    explanation: "El pipeline estándar incluye rate limiter, timeout total, retry, circuit breaker y timeout por intento; no cachea respuestas."

@@ -1,0 +1,193 @@
+id: ch08
+number: 8
+title: "C# moderno (10 → 14)"
+level: "Senior"
+summary: "Records, pattern matching, nullable reference types, required/init, primary constructors, collection expressions y novedades de C# 14."
+objectives:
+  - "Usar records y pattern matching para modelar dominios de forma expresiva."
+  - "Activar y aprovechar nullable reference types sin abusar de `!`."
+  - "Conocer las trampas de primary constructors y `with`."
+
+sections:
+  - id: s1
+    title: "Records"
+    body: |
+      Un `record` (class) o `record struct` genera automáticamente:
+
+      - **Igualdad por valor**: `Equals`, `GetHashCode`, `==` y `!=` comparan todas las propiedades (y el `EqualityContract`, por lo que un record derivado nunca es igual a su base).
+      - `ToString()` legible: `Persona { Nombre = Ana, Edad = 30 }`.
+      - **Deconstrucción** y expresiones `with` para crear copias modificadas.
+
+      ```csharp
+      public record Persona(string Nombre, int Edad);
+
+      var a = new Persona("Ana", 30);
+      var b = a with { Edad = 31 };   // copia no destructiva
+      Console.WriteLine(a == new Persona("Ana", 30)); // True
+      ```
+
+      Trampas:
+
+      - `with` hace una copia **superficial**: si una propiedad es una `List<T>`, ambas instancias comparten la misma lista.
+      - La igualdad de una propiedad `List<T>` compara **referencias**, no contenidos.
+      - `record struct` es mutable por defecto; usa `readonly record struct` para inmutabilidad.
+
+  - id: s2
+    title: "Pattern matching"
+    body: |
+      Patrones disponibles: tipo, constante, relacional (`> 5`), lógicos (`and`, `or`, `not`), propiedad, posicional, `var`, descarte `_` y **list patterns** (C# 11).
+
+      ```csharp
+      decimal Descuento(Pedido p) => p switch
+      {
+          { Cliente.EsVip: true, Total: > 1000 } => 0.15m,
+          { Total: > 1000 }                      => 0.10m,
+          { Lineas: [] }                         => 0m,          // lista vacía
+          { Lineas: [_, _, ..] }                 => 0.02m,       // 2 o más líneas
+          _                                      => 0m
+      };
+
+      if (obj is not null and string { Length: > 0 } s) Console.WriteLine(s);
+      ```
+
+      `is null` / `is not null` **no invocan** operadores `==` sobrecargados, a diferencia de `== null`. El compilador avisa si un `switch` no es exhaustivo y lanza `SwitchExpressionException` en runtime si ningún caso coincide.
+
+  - id: s3
+    title: "Nullable reference types, required e init"
+    body: |
+      Con `<Nullable>enable</Nullable>`, `string` significa "no debería ser null" y `string?` "puede ser null". Es un **análisis estático**: no cambia el IL ni añade comprobaciones en runtime.
+
+      - `!` (null-forgiving) silencia el aviso: úsalo solo cuando sabes algo que el compilador no.
+      - Atributos de flujo: `[NotNullWhen(true)]`, `[MaybeNull]`, `[MemberNotNull]` enseñan al compilador tus garantías.
+
+      `init` permite asignar solo durante la inicialización; `required` (C# 11) **obliga** a asignar en el inicializador de objeto:
+
+      ```csharp
+      public class Usuario
+      {
+          public required string Email { get; init; }
+          public string? Telefono { get; init; }
+      }
+      var u = new Usuario { Email = "a@b.com" }; // sin Email → error de compilación
+      ```
+
+  - id: s4
+    title: "Primary constructors, colecciones y C# 14"
+    body: |
+      **Primary constructors en clases** (C# 12):
+
+      ```csharp
+      public class PedidoService(IRepo repo, ILogger<PedidoService> log)
+      {
+          public Task Guardar(Pedido p) { log.LogInformation("Guardando"); return repo.Save(p); }
+      }
+      ```
+
+      Los parámetros **no son propiedades ni campos readonly**: se capturan como estado mutable oculto. Puedes reasignarlos por error. Si necesitas inmutabilidad, asígnalos a un campo `readonly`. En `record` sí generan propiedades públicas.
+
+      **Collection expressions** (C# 12): `int[] a = [1, 2, 3]; List<int> b = [..a, 4];` funcionan con arrays, listas, `Span<T>` e `ImmutableArray<T>`.
+
+      **C# 14 (.NET 10)**:
+
+      - **Extension members**: bloques `extension(Tipo receptor) { ... }` que admiten propiedades y miembros estáticos de extensión, además de métodos.
+      - Palabra clave **`field`** en propiedades: accede al campo de respaldo generado sin declararlo (`set => field = value.Trim();`).
+      - Asignación condicional nula: `cliente?.Direccion = nueva;`.
+      - `nameof` con genéricos abiertos (`nameof(List<>)`) y conversiones implícitas a `Span<T>`.
+
+cards:
+  - id: c1
+    front: "¿Qué genera el compilador para un `record`?"
+    back: "Igualdad por valor (Equals, GetHashCode, ==, !=, EqualityContract), ToString legible, Deconstruct (si es posicional) y soporte para `with` (método clon)."
+  - id: c2
+    front: "¿`with` hace copia profunda o superficial?"
+    back: "**Superficial**: las propiedades de tipo referencia (listas, objetos) se comparten entre original y copia."
+  - id: c3
+    front: "¿Por qué preferir `x is null` a `x == null`?"
+    back: "`is null` no invoca un `operator ==` sobrecargado, así que siempre comprueba la referencia real."
+  - id: c4
+    front: "¿Los nullable reference types añaden comprobaciones en runtime?"
+    back: "No. Son solo análisis estático y anotaciones de metadatos; un null puede seguir llegando (por ejemplo desde reflexión o código no anotado)."
+  - id: c5
+    front: "Diferencia entre `init` y `required`."
+    back: "`init` restringe *cuándo* puede asignarse (solo al inicializar). `required` obliga a que *se asigne* en el inicializador del objeto."
+  - id: c6
+    front: "Trampa de los primary constructors en clases."
+    back: "Los parámetros se capturan como estado mutable oculto (no son campos readonly ni propiedades) y pueden reasignarse accidentalmente."
+  - id: c7
+    front: "¿Qué hace el list pattern `[_, _, ..]`?"
+    back: "Coincide con colecciones de al menos dos elementos: dos descartes y un *slice* `..` que acepta el resto."
+  - id: c8
+    front: "¿Para qué sirve la palabra clave `field` (C# 14)?"
+    back: "Dentro de un accesor de propiedad, se refiere al campo de respaldo generado por el compilador, permitiendo lógica en get/set sin declarar el campo."
+
+questions:
+  - id: q1
+    type: mcq
+    tag: "¿Qué imprime?"
+    prompt: "¿Qué imprime?"
+    code: |
+      record Persona(string Nombre);
+
+      var a = new Persona("Ana");
+      var b = new Persona("Ana");
+      Console.WriteLine(a == b);
+      Console.WriteLine(ReferenceEquals(a, b));
+    options: ["True / True", "True / False", "False / False", "False / True"]
+    answer: 1
+    explanation: "Los records comparan por valor (True) pero siguen siendo dos instancias distintas (False)."
+  - id: q2
+    type: mcq
+    tag: "¿Qué imprime?"
+    prompt: "¿Qué imprime?"
+    code: |
+      record Equipo(string Nombre, List<string> Miembros);
+
+      var a = new Equipo("A", new List<string> { "Ana" });
+      var b = a with { Nombre = "B" };
+      b.Miembros.Add("Luis");
+      Console.WriteLine(a.Miembros.Count);
+    options: ["1", "2", "0", "Lanza excepción"]
+    answer: 1
+    explanation: "with copia superficialmente: a y b comparten la misma List, así que a ve el elemento añadido."
+  - id: q3
+    type: tf
+    prompt: "Activar `<Nullable>enable</Nullable>` hace que el runtime lance excepción al asignar null a un `string` no anotado."
+    answer: false
+    explanation: "Es solo análisis en tiempo de compilación; genera advertencias, no comprobaciones en runtime."
+  - id: q4
+    type: mcq
+    prompt: "¿Qué valor devuelve `Clasifica(15)`?"
+    code: |
+      string Clasifica(int n) => n switch
+      {
+          < 0 => "negativo",
+          0 => "cero",
+          > 0 and < 10 => "pequeño",
+          >= 10 and < 100 => "mediano",
+          _ => "grande"
+      };
+    options: ["pequeño", "mediano", "grande", "SwitchExpressionException"]
+    answer: 1
+    explanation: "15 cumple el patrón relacional combinado `>= 10 and < 100`."
+  - id: q5
+    type: fill
+    prompt: "Completa: el modificador que obliga a asignar una propiedad en el inicializador de objeto es `______`."
+    answer: ["required"]
+    explanation: "required (C# 11) produce error de compilación si falta la asignación."
+  - id: q6
+    type: tf
+    prompt: "En una clase con primary constructor `class S(IRepo repo)`, `repo` se comporta como un campo readonly."
+    answer: false
+    explanation: "Es un parámetro capturado y mutable; nada impide hacer `repo = null` dentro de la clase."
+  - id: q7
+    type: mcq
+    prompt: "¿Qué colección resulta de `int[] a = [1, 2]; List<int> b = [0, ..a, 3];`?"
+    options: ["[0, [1, 2], 3]", "[0, 1, 2, 3]", "No compila", "[1, 2, 0, 3]"]
+    answer: 1
+    explanation: "El spread `..a` expande los elementos de a en la nueva colección."
+  - id: q8
+    type: mcq
+    prompt: "¿Qué novedad introdujo C# 14 que permite declarar propiedades de extensión?"
+    options: ["Default interface methods", "Extension members (bloques extension)", "Source generators", "Partial properties"]
+    answer: 1
+    explanation: "Los extension members de C# 14 amplían los métodos de extensión con propiedades y miembros estáticos de extensión."

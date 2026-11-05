@@ -1,0 +1,187 @@
+id: ch05
+number: 5
+title: "LINQ e iteradores en profundidad"
+level: "Senior"
+summary: "Ejecución diferida, yield, IEnumerable vs IQueryable, árboles de expresión y trampas de rendimiento."
+objectives:
+  - "Predecir cuándo se ejecuta realmente una consulta LINQ."
+  - "Entender qué genera el compilador para `yield return`."
+  - "Distinguir la ejecución en memoria de la traducción a SQL."
+
+sections:
+  - id: s1
+    title: "Ejecución diferida vs inmediata"
+    body: |
+      La mayoría de operadores LINQ (`Where`, `Select`, `OrderBy`, `Take`...) son **diferidos**: devuelven un objeto que describe la consulta y no hacen nada hasta que se enumera.
+
+      Los operadores **inmediatos** materializan: `ToList`, `ToArray`, `ToDictionary`, `Count`, `First`, `Sum`, `Any`...
+
+      ```csharp
+      var nums = new List<int> { 1, 2, 3 };
+      var mayores = nums.Where(n => n > 1); // nada se ejecuta todavía
+      nums.Add(4);
+      Console.WriteLine(mayores.Count()); // 3 → ve el 4 porque se evalúa ahora
+      ```
+
+      **Enumeración múltiple**: cada `foreach`/`Count()` sobre un `IEnumerable` diferido vuelve a ejecutar toda la cadena (y la consulta a BD, o la lectura del fichero). Si vas a recorrerlo varias veces, materializa con `ToList()`.
+
+      Algunos operadores diferidos **acumulan** al empezar a enumerar: `OrderBy`, `GroupBy`, `Reverse` necesitan consumir toda la fuente antes de producir el primer elemento.
+
+  - id: s2
+    title: "yield y máquinas de estado"
+    body: |
+      Un método con `yield return` se convierte en una **clase máquina de estados** que implementa `IEnumerable<T>` e `IEnumerator<T>`. El cuerpo no corre hasta el primer `MoveNext()`.
+
+      Trampa clásica: la **validación de argumentos se retrasa**.
+
+      ```csharp
+      public static IEnumerable<T> Pares<T>(IEnumerable<T> src)
+      {
+          ArgumentNullException.ThrowIfNull(src); // ¡no se ejecuta al llamar!
+          foreach (var x in src) yield return x;
+      }
+
+      // Patrón correcto: validar fuera y delegar en una función local iteradora
+      public static IEnumerable<T> Pares2<T>(IEnumerable<T> src)
+      {
+          ArgumentNullException.ThrowIfNull(src); // se ejecuta inmediatamente
+          return Iter(src);
+
+          static IEnumerable<T> Iter(IEnumerable<T> s) { foreach (var x in s) yield return x; }
+      }
+      ```
+
+      Los bloques `finally` dentro de un iterador se ejecutan cuando el `foreach` termina **o** se abandona (`break`), porque `foreach` llama a `Dispose()` del enumerador.
+
+  - id: s3
+    title: "IEnumerable vs IQueryable"
+    body: |
+      - `IEnumerable<T>` + `Func<T, bool>`: LINQ to Objects. Ejecuta **delegados compilados en memoria**.
+      - `IQueryable<T>` + `Expression<Func<T, bool>>`: el compilador genera un **árbol de expresión** (datos que describen el código) que un proveedor (EF Core) traduce a SQL.
+
+      ```csharp
+      IQueryable<Cliente> q = db.Clientes.Where(c => c.Pais == "ES"); // se traduce a WHERE
+      IEnumerable<Cliente> e = db.Clientes.AsEnumerable().Where(c => c.Pais == "ES"); // ¡trae toda la tabla!
+      ```
+
+      Errores típicos:
+
+      - Exponer `IEnumerable<T>` desde un repositorio y filtrar después → se trae todo a memoria.
+      - Usar un método C# propio dentro de `Where` en EF Core → no puede traducirse y lanza `InvalidOperationException` (EF Core 3+ solo evalúa en cliente la proyección final).
+
+      ```csharp
+      Expression<Func<int, bool>> expr = x => x > 5;
+      Func<int, bool> fn = expr.Compile(); // compilar es caro: cachea el resultado
+      ```
+
+  - id: s4
+    title: "Rendimiento y operadores correctos"
+    body: |
+      - `Any()` en lugar de `Count() > 0` (sobre `IEnumerable` genérico, `Count()` recorre todo).
+      - `First` lanza si no hay elementos; `FirstOrDefault` devuelve `default`. `Single` lanza si hay **cero o más de uno** (debe recorrer para comprobar unicidad).
+      - Para búsquedas repetidas, construye un `Dictionary`/`HashSet` o `ToLookup` en vez de `Where` dentro de un bucle (O(n²) → O(n)).
+      - .NET 9 añadió `CountBy`, `AggregateBy` e `Index()`; .NET 6 añadió `Chunk`, `DistinctBy`, `MaxBy`, `MinBy`.
+      - En rutas calientes, LINQ asigna enumeradores y delegados. Un `for`/`foreach` sobre `Span<T>` o `List<T>` puede ser varias veces más rápido; mide antes con BenchmarkDotNet.
+
+      ```csharp
+      var porId = pedidos.ToDictionary(p => p.Id);          // O(n)
+      foreach (var l in lineas) l.Pedido = porId[l.PedidoId]; // O(1) por búsqueda
+      ```
+
+cards:
+  - id: c1
+    front: "Menciona 3 operadores LINQ de ejecución inmediata."
+    back: "`ToList`, `ToArray`, `ToDictionary`, `Count`, `First`, `Single`, `Sum`, `Any`, `Max`... (cualquiera que devuelva un valor escalar o una colección materializada)."
+  - id: c2
+    front: "¿Qué problema causa enumerar varias veces un IEnumerable diferido?"
+    back: "Se re-ejecuta toda la cadena cada vez: trabajo duplicado, consultas repetidas a BD y posibles resultados distintos si la fuente cambia."
+  - id: c3
+    front: "¿Por qué la validación de argumentos en un método con yield se retrasa?"
+    back: "Todo el cuerpo se convierte en la máquina de estados y solo corre en el primer `MoveNext()`. Solución: validar en un método normal que devuelve una función local iteradora."
+  - id: c4
+    front: "Diferencia entre `Func<T,bool>` y `Expression<Func<T,bool>>`."
+    back: "El primero es código compilado (delegado) ejecutable en memoria; el segundo es un **árbol de datos** que describe el código y puede traducirse (por ejemplo a SQL)."
+  - id: c5
+    front: "¿Qué hace `AsEnumerable()` en una consulta EF Core?"
+    back: "Cambia a LINQ to Objects: todo lo que va después se ejecuta en memoria, trayendo los datos previos de la BD."
+  - id: c6
+    front: "Diferencia entre First y Single."
+    back: "`First` toma el primero y lanza si no hay. `Single` lanza si hay cero **o más de uno**, por lo que debe comprobar que no exista un segundo elemento."
+  - id: c7
+    front: "¿Cuándo se ejecuta el `finally` de un iterador si haces `break` en el foreach?"
+    back: "Al hacer break, `foreach` llama a `Dispose()` del enumerador, lo que ejecuta los bloques `finally` pendientes."
+  - id: c8
+    front: "¿Por qué `OrderBy` no es 'streaming' aunque sea diferido?"
+    back: "Necesita consumir toda la secuencia de origen antes de poder emitir el primer elemento ordenado."
+
+questions:
+  - id: q1
+    type: mcq
+    tag: "¿Qué imprime?"
+    prompt: "¿Qué imprime?"
+    code: |
+      var list = new List<int> { 1, 2, 3 };
+      var q = list.Where(x => x > 1);
+      list.Add(4);
+      Console.WriteLine(q.Count());
+    options: ["2", "3", "4", "InvalidOperationException"]
+    answer: 1
+    explanation: "Where es diferido: se evalúa al llamar Count(), cuando la lista ya contiene 2, 3 y 4."
+  - id: q2
+    type: mcq
+    tag: "¿Qué imprime?"
+    prompt: "¿Cuántas veces se imprime \"eval\"?"
+    code: |
+      var q = Enumerable.Range(1, 3).Select(x => { Console.WriteLine("eval"); return x; });
+      var a = q.Count();
+      var b = q.First();
+    options: ["1", "3", "4", "6"]
+    answer: 2
+    explanation: "Count() recorre los 3 elementos (3 veces). First() vuelve a enumerar desde el principio y se detiene en el primero (1 vez). Total: 4."
+  - id: q3
+    type: tf
+    prompt: "En EF Core, `db.Pedidos.Where(p => MiMetodoCSharp(p.Total))` se traduce automáticamente a SQL."
+    answer: false
+    explanation: "EF Core no puede traducir métodos arbitrarios. Desde EF Core 3 lanza una excepción en lugar de evaluar silenciosamente en cliente."
+  - id: q4
+    type: mcq
+    prompt: "¿Qué es más eficiente para saber si una secuencia `IEnumerable<T>` no materializada tiene elementos?"
+    options: ["seq.Count() > 0", "seq.Any()", "seq.ToList().Count > 0", "seq.LongCount() != 0"]
+    answer: 1
+    explanation: "Any() se detiene en el primer elemento; Count() recorre toda la secuencia si no es una ICollection."
+  - id: q5
+    type: fill
+    prompt: "Completa: el tipo que EF Core recibe en `Where` para poder traducir el filtro a SQL es `Expression<______<T, bool>>`."
+    answer: ["Func"]
+    explanation: "Queryable.Where acepta Expression<Func<T, bool>>: un árbol de expresión en lugar de un delegado."
+  - id: q6
+    type: mcq
+    tag: "¿Qué imprime?"
+    prompt: "¿Qué ocurre al ejecutar esta línea si `Pares` valida null antes de su `yield return`?"
+    code: |
+      static IEnumerable<int> Pares(IEnumerable<int> src)
+      {
+          ArgumentNullException.ThrowIfNull(src);
+          foreach (var x in src) if (x % 2 == 0) yield return x;
+      }
+
+      var r = Pares(null!);
+      Console.WriteLine("ok");
+    options: ["Lanza ArgumentNullException antes de imprimir", "Imprime ok", "NullReferenceException", "No compila"]
+    answer: 1
+    explanation: "El cuerpo del iterador no se ejecuta hasta enumerar. La excepción aparecería en el primer MoveNext(), no en la llamada."
+  - id: q7
+    type: mcq
+    prompt: "Para asignar a 100.000 líneas su pedido entre 10.000 pedidos, ¿qué es mejor?"
+    options:
+      - "pedidos.First(p => p.Id == linea.PedidoId) dentro del bucle"
+      - "Construir un Dictionary con ToDictionary(p => p.Id) y buscar por clave"
+      - "pedidos.Where(...).Single() dentro del bucle"
+      - "Ordenar ambas listas con OrderBy en cada iteración"
+    answer: 1
+    explanation: "El diccionario convierte un algoritmo O(n·m) en O(n + m)."
+  - id: q8
+    type: tf
+    prompt: "`Single()` lanza excepción tanto si la secuencia está vacía como si tiene más de un elemento."
+    answer: true
+    explanation: "Esa es precisamente su semántica: garantizar exactamente un elemento."

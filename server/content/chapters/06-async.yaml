@@ -1,0 +1,217 @@
+id: ch06
+number: 6
+title: "Async/await por dentro"
+level: "Senior"
+summary: "Máquina de estados, SynchronizationContext, ConfigureAwait, ValueTask, cancelación y antipatrones que causan deadlocks."
+objectives:
+  - "Explicar qué genera el compilador para un método async."
+  - "Diagnosticar y evitar deadlocks sync-over-async."
+  - "Usar ValueTask, CancellationToken e IAsyncEnumerable correctamente."
+
+sections:
+  - id: s1
+    title: "La máquina de estados"
+    body: |
+      El compilador transforma un método `async` en un **struct máquina de estados** (`IAsyncStateMachine`) con:
+
+      - Un campo `state` que indica en qué `await` va.
+      - Campos para las variables locales que **cruzan** un `await`.
+      - Un *builder* (`AsyncTaskMethodBuilder`) que crea y completa la `Task`.
+
+      El método se ejecuta **de forma síncrona hasta el primer `await` que no esté completado**. Solo entonces la máquina de estados se copia (boxing) al heap y se registra una continuación.
+
+      ```csharp
+      async Task<int> F()
+      {
+          Console.Write("A");
+          await Task.Delay(10); // aquí se suspende y devuelve el control
+          Console.Write("B");
+          return 1;
+      }
+
+      var t = F();          // imprime A y devuelve una Task incompleta
+      Console.Write("C");   // C
+      await t;              // B   → salida: ACB
+      ```
+
+      `async` **no crea hilos**. Un `await` de E/S (red, disco) no ocupa ningún hilo mientras espera: se reanuda cuando el sistema operativo notifica la finalización.
+
+  - id: s2
+    title: "SynchronizationContext, ConfigureAwait y deadlocks"
+    body: |
+      Al hacer `await`, por defecto se captura el **contexto actual** (`SynchronizationContext` o `TaskScheduler`) y la continuación se publica en él. En WPF/WinForms/MAUI eso significa *volver al hilo de UI*.
+
+      **Deadlock clásico sync-over-async** (UI o ASP.NET clásico):
+
+      ```csharp
+      // Botón en WinForms
+      void OnClick(object s, EventArgs e)
+      {
+          var data = GetDataAsync().Result; // bloquea el hilo de UI...
+      }
+      async Task<string> GetDataAsync()
+      {
+          await Task.Delay(100);           // ...y la continuación quiere volver al hilo de UI → deadlock
+          return "x";
+      }
+      ```
+
+      - `ConfigureAwait(false)` evita capturar el contexto: obligatorio en **librerías** de propósito general.
+      - **ASP.NET Core no tiene SynchronizationContext**, por lo que este deadlock no ocurre ahí, pero bloquear con `.Result`/`.Wait()` sigue causando **thread pool starvation** bajo carga.
+      - Regla: *async all the way*. No mezcles bloqueo síncrono con async.
+
+  - id: s3
+    title: "Task, ValueTask y antipatrones"
+    body: |
+      **ValueTask<T>** evita la asignación cuando el resultado suele estar disponible de forma síncrona (cachés, buffers). Restricciones:
+
+      - Solo se puede **await una vez**.
+      - No llames a `.Result` hasta que esté completado.
+      - No la awaitees de forma concurrente. Si necesitas eso, conviértela con `.AsTask()`.
+
+      Antipatrones:
+
+      - `async void`: las excepciones no se pueden capturar con try/catch del llamador y **tiran el proceso**. Solo para manejadores de eventos.
+      - `Task.Run` en ASP.NET Core para "hacer algo async": solo mueve trabajo a otro hilo del mismo pool.
+      - *Fire and forget* sin observar excepciones.
+      - `return await` innecesario vs. omitirlo: omitirlo ahorra la máquina de estados pero **cambia la semántica** dentro de `using`/`try` (el recurso se liberaría antes de terminar la tarea).
+
+      ```csharp
+      // Ejecutar en paralelo de verdad
+      var t1 = GetUserAsync(id);
+      var t2 = GetOrdersAsync(id);
+      await Task.WhenAll(t1, t2);  // await lanza la primera excepción; t.Exception las contiene todas
+      ```
+
+  - id: s4
+    title: "Cancelación, TaskCompletionSource y streams asíncronos"
+    body: |
+      La cancelación es **cooperativa**: el `CancellationToken` solo señala; el código debe comprobarlo y pasarlo hacia abajo.
+
+      ```csharp
+      using var cts = CancellationTokenSource.CreateLinkedTokenSource(requestToken);
+      cts.CancelAfter(TimeSpan.FromSeconds(5));
+      await httpClient.GetAsync(url, cts.Token); // lanza OperationCanceledException
+      ```
+
+      **TaskCompletionSource** adapta APIs basadas en callbacks a `Task`. Créalo siempre con `TaskCreationOptions.RunContinuationsAsynchronously`; si no, las continuaciones se ejecutan *inline* en el hilo que llama a `SetResult`, provocando reentradas y deadlocks sutiles.
+
+      **IAsyncEnumerable<T>** combina `yield return` con `await`:
+
+      ```csharp
+      async IAsyncEnumerable<Linea> LeerAsync([EnumeratorCancellation] CancellationToken ct = default)
+      {
+          await foreach (var l in fuente.WithCancellation(ct))
+              yield return Parse(l);
+      }
+      ```
+
+      El atributo `[EnumeratorCancellation]` conecta el token pasado con `WithCancellation(ct)` al parámetro del iterador.
+
+cards:
+  - id: c1
+    front: "¿Hasta dónde se ejecuta síncronamente un método async?"
+    back: "Hasta el primer `await` sobre una operación **no completada**. Si todo completa síncronamente, el método entero corre síncrono."
+  - id: c2
+    front: "¿Crea async/await un hilo nuevo?"
+    back: "No. Una operación de E/S pendiente no ocupa ningún hilo; las continuaciones se ejecutan en el contexto capturado o en el thread pool."
+  - id: c3
+    front: "¿Qué hace `ConfigureAwait(false)`?"
+    back: "No captura el SynchronizationContext/TaskScheduler actual: la continuación puede ejecutarse en cualquier hilo del pool. Recomendado en librerías."
+  - id: c4
+    front: "¿Por qué `async void` es peligroso?"
+    back: "No se puede esperar ni observar: una excepción se relanza en el SynchronizationContext (o el thread pool) y suele terminar el proceso."
+  - id: c5
+    front: "3 reglas de uso de ValueTask."
+    back: "No awaitear más de una vez; no awaitear concurrentemente; no usar `.Result`/`GetAwaiter().GetResult()` antes de que complete. Si dudas, `.AsTask()`."
+  - id: c6
+    front: "¿Por qué crear TaskCompletionSource con RunContinuationsAsynchronously?"
+    back: "Para que `SetResult` no ejecute las continuaciones inline en el hilo que la llama, evitando reentradas, deadlocks y bloqueos inesperados."
+  - id: c7
+    front: "¿Qué excepción lanza `await Task.WhenAll(...)` si fallan varias tareas?"
+    back: "La **primera** excepción. Todas están en `whenAllTask.Exception` (una AggregateException)."
+  - id: c8
+    front: "¿Para qué sirve `[EnumeratorCancellation]`?"
+    back: "En un iterador `async IAsyncEnumerable`, marca el parámetro CancellationToken que recibirá el token pasado por `WithCancellation()`."
+  - id: c9
+    front: "¿Hay deadlock por `.Result` en ASP.NET Core?"
+    back: "El deadlock por SynchronizationContext no, porque no existe uno. Pero bloquear hilos causa **thread pool starvation** y latencias enormes bajo carga."
+
+questions:
+  - id: q1
+    type: mcq
+    tag: "¿Qué imprime?"
+    prompt: "¿Qué imprime?"
+    code: |
+      async Task<int> F()
+      {
+          Console.Write("A");
+          await Task.Delay(10);
+          Console.Write("B");
+          return 1;
+      }
+
+      var t = F();
+      Console.Write("C");
+      await t;
+    options: ["ABC", "ACB", "CAB", "CBA"]
+    answer: 1
+    explanation: "F se ejecuta síncronamente hasta el primer await incompleto (imprime A), devuelve el control (C) y al completar el Delay imprime B."
+  - id: q2
+    type: mcq
+    prompt: "En una app WinForms, `GetDataAsync().Result` en un manejador de botón, donde GetDataAsync hace `await Task.Delay(100)` sin ConfigureAwait. ¿Qué pasa?"
+    options:
+      - "Funciona pero es lento"
+      - "Deadlock"
+      - "Lanza InvalidOperationException"
+      - "Se ejecuta en otro hilo automáticamente"
+    answer: 1
+    explanation: "El hilo de UI queda bloqueado esperando el resultado, y la continuación necesita ese mismo hilo para ejecutarse: ninguno avanza."
+  - id: q3
+    type: tf
+    prompt: "Un ValueTask<T> puede awaitearse varias veces sin problema, igual que una Task<T>."
+    answer: false
+    explanation: "Un ValueTask puede estar respaldado por un IValueTaskSource reutilizable; awaitearlo dos veces es comportamiento indefinido."
+  - id: q4
+    type: mcq
+    prompt: "¿Cuál es el único uso aceptado de `async void`?"
+    options: ["Métodos de librería", "Manejadores de eventos", "Constructores", "Main"]
+    answer: 1
+    explanation: "Los manejadores de eventos deben tener firma void. En cualquier otro caso usa async Task."
+  - id: q5
+    type: mcq
+    tag: "Code review"
+    prompt: "¿Qué problema tiene este código?"
+    code: |
+      public Task<string> LeerAsync(string path)
+      {
+          using var reader = new StreamReader(path);
+          return reader.ReadToEndAsync();
+      }
+    options:
+      - "Ninguno, es más eficiente que con async/await"
+      - "El reader se libera antes de que la lectura termine"
+      - "No compila"
+      - "Hace deadlock siempre"
+    answer: 1
+    explanation: "Al no awaitear, el método retorna inmediatamente y el using libera el StreamReader mientras la tarea sigue leyendo. Aquí hace falta async + return await."
+  - id: q6
+    type: fill
+    prompt: "Completa: la cancelación en .NET es ______ (el token solo señala; el código debe comprobarlo)."
+    answer: ["cooperativa", "cooperative"]
+    explanation: "Nadie aborta el hilo: el código comprueba el token o pasa el token a APIs que lo respetan."
+  - id: q7
+    type: mcq
+    prompt: "¿Qué ventaja real tiene `ConfigureAwait(false)` en una aplicación ASP.NET Core moderna?"
+    options:
+      - "Evita deadlocks del SynchronizationContext de ASP.NET Core"
+      - "Prácticamente ninguna, porque ASP.NET Core no tiene SynchronizationContext; sí importa en librerías reutilizables"
+      - "Hace el código el doble de rápido"
+      - "Obliga a ejecutar en el hilo original"
+    answer: 1
+    explanation: "Sin SynchronizationContext el beneficio es mínimo en el código de la app. En librerías se sigue recomendando porque pueden usarse desde UI."
+  - id: q8
+    type: tf
+    prompt: "Un await sobre una lectura de socket pendiente mantiene ocupado un hilo del thread pool mientras espera."
+    answer: false
+    explanation: "La E/S asíncrona usa completion ports/epoll: ningún hilo queda bloqueado esperando."

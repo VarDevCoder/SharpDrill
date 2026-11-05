@@ -1,0 +1,180 @@
+id: ch10
+number: 10
+title: "Reflexión, atributos y source generators"
+level: "Senior"
+summary: "Coste de la reflexión, cómo acelerarla, atributos personalizados, generadores de código Roslyn y compatibilidad con trimming y Native AOT."
+objectives:
+  - "Medir y mitigar el coste de la reflexión."
+  - "Saber cuándo un source generator es mejor que reflexión en runtime."
+  - "Escribir código compatible con trimming y Native AOT."
+
+sections:
+  - id: s1
+    title: "Reflexión y su coste"
+    body: |
+      La reflexión (`System.Reflection`) permite inspeccionar tipos e invocar miembros en runtime. Es la base de serializadores, ORMs y contenedores de DI clásicos, pero:
+
+      - `GetType().GetProperties()` y similares **asignan** arrays nuevos en cada llamada.
+      - `MethodInfo.Invoke` y `PropertyInfo.GetValue` hacen boxing de argumentos y validaciones: órdenes de magnitud más lentos que una llamada directa.
+
+      Estrategias para acelerarla:
+
+      1. **Cachear** los `MemberInfo` (por ejemplo en un *static generic cache*).
+      2. Convertir a delegado: `methodInfo.CreateDelegate<Func<T, int>>()`.
+      3. Compilar un árbol de expresión una vez y reutilizarlo.
+      4. **`[UnsafeAccessor]`** (.NET 8): acceso a miembros privados sin reflexión, resuelto en tiempo de JIT.
+
+      ```csharp
+      static class Accessors
+      {
+          [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_items")]
+          public static extern ref object[] Items(MiColeccion c);
+      }
+      ```
+
+  - id: s2
+    title: "Atributos personalizados"
+    body: |
+      Los atributos son **metadatos** almacenados en el ensamblado. No hacen nada por sí mismos: alguien (el compilador, un framework, tu código) debe leerlos.
+
+      ```csharp
+      [AttributeUsage(AttributeTargets.Property, AllowMultiple = false, Inherited = true)]
+      public sealed class SensibleAttribute : Attribute
+      {
+          public string Motivo { get; }
+          public SensibleAttribute(string motivo) => Motivo = motivo;
+      }
+
+      public class Usuario { [Sensible("PII")] public string Email { get; set; } = ""; }
+
+      var props = typeof(Usuario).GetProperties()
+          .Where(p => p.IsDefined(typeof(SensibleAttribute), inherit: true));
+      ```
+
+      Argumentos de atributos: solo constantes, `typeof`, enums y arrays de ellos. Cada `GetCustomAttributes` **crea instancias nuevas** del atributo: cachea el resultado. Desde C# 11 hay **atributos genéricos** (`[Validador<EmailRule>]`).
+
+  - id: s3
+    title: "Source generators"
+    body: |
+      Un **source generator** (Roslyn) se ejecuta durante la compilación, inspecciona el código y **añade nuevos archivos C#**. Ventajas frente a reflexión en runtime:
+
+      - Cero coste de arranque y de ejecución por inspección.
+      - Errores detectados en compilación.
+      - Compatible con trimming y Native AOT.
+
+      Ejemplos en el BCL:
+
+      ```csharp
+      [JsonSerializable(typeof(Pedido))]
+      internal partial class AppJsonContext : JsonSerializerContext { }   // System.Text.Json
+
+      [GeneratedRegex(@"^\d{4}-\d{2}-\d{2}$")]
+      private static partial Regex FechaIso();                             // Regex compilado en build
+
+      [LoggerMessage(Level = LogLevel.Information, Message = "Pedido {Id} creado")]
+      static partial void PedidoCreado(ILogger logger, int id);           // logging sin boxing
+      ```
+
+      Escribe los tuyos con **`IIncrementalGenerator`** (no la antigua `ISourceGenerator`): el pipeline incremental cachea resultados y no ralentiza el IDE. Usa `ForAttributeWithMetadataName` para filtrar eficientemente los nodos marcados con tu atributo.
+
+  - id: s4
+    title: "Trimming, Native AOT y dynamic"
+    body: |
+      **Trimming** elimina código no usado del despliegue; **Native AOT** compila a código nativo sin JIT (arranque en milisegundos, menor memoria). Ambos rompen patrones de reflexión dinámica:
+
+      - `Type.GetType("Nombre.Tipo")` con strings: el trimmer no sabe que debe conservar ese tipo.
+      - `Reflection.Emit` y `Expression.Compile()` no generan IL en AOT (Compile cae a un intérprete más lento).
+      - `MakeGenericType` con tipos por valor desconocidos en compilación puede fallar.
+
+      Herramientas: `[DynamicallyAccessedMembers]`, `[RequiresUnreferencedCode]`, `[RequiresDynamicCode]` y los analizadores (`<IsAotCompatible>true</IsAotCompatible>`) que avisan en compilación.
+
+      **`dynamic`** usa el DLR: resuelve miembros en runtime con *call-site caching*. Es útil para interop COM o JSON muy dinámico, pero pierde comprobación de tipos, IntelliSense y no es compatible con AOT. En código de negocio casi siempre hay una alternativa mejor.
+
+cards:
+  - id: c1
+    front: "¿Por qué `MethodInfo.Invoke` es lento?"
+    back: "Valida argumentos, los empaqueta en `object[]` (boxing de tipos por valor) y no puede inlinearse. Mejor `CreateDelegate` o expresión compilada y cacheada."
+  - id: c2
+    front: "¿Qué es `[UnsafeAccessor]` (.NET 8)?"
+    back: "Un atributo para declarar métodos `extern` que acceden a campos/métodos/constructores privados sin reflexión; el JIT lo resuelve como acceso directo y es compatible con AOT."
+  - id: c3
+    front: "¿Hacen algo los atributos por sí mismos?"
+    back: "No. Son metadatos; solo tienen efecto si el compilador, un framework o tu código los lee (por reflexión o desde un source generator)."
+  - id: c4
+    front: "¿Qué valores pueden pasarse como argumentos de un atributo?"
+    back: "Constantes primitivas y string, `typeof(...)`, enums, null y arrays unidimensionales de esos tipos."
+  - id: c5
+    front: "Ventaja de un source generator frente a reflexión."
+    back: "Genera código en compilación: sin coste de inspección en runtime, errores tempranos y compatible con trimming/Native AOT."
+  - id: c6
+    front: "¿Qué interfaz usar para escribir un source generator moderno?"
+    back: "`IIncrementalGenerator`, con pipelines incrementales (y `ForAttributeWithMetadataName`) para no penalizar el IDE."
+  - id: c7
+    front: "¿Por qué `Type.GetType(\"MiApp.Plugin\")` es problemático con trimming?"
+    back: "El trimmer analiza estáticamente el código y no sabe que ese tipo se usa vía string, así que puede eliminarlo."
+  - id: c8
+    front: "Qué hace `[GeneratedRegex]`."
+    back: "Genera en compilación el código del autómata de la expresión regular: sin coste de construcción en runtime y compatible con AOT."
+
+questions:
+  - id: q1
+    type: mcq
+    prompt: "Un serializador propio llama a `typeof(T).GetProperties()` en cada serialización. ¿Cuál es la mejora más directa?"
+    options:
+      - "Cambiar a dynamic"
+      - "Cachear las propiedades (y delegados de acceso) por tipo"
+      - "Usar GC.Collect tras cada llamada"
+      - "Convertir las propiedades en campos públicos"
+    answer: 1
+    explanation: "GetProperties asigna un array nuevo y hace trabajo de metadatos en cada llamada. Un caché por tipo (static generic cache) lo hace una vez."
+  - id: q2
+    type: tf
+    prompt: "`Expression.Compile()` funciona igual de rápido en una app Native AOT que con JIT."
+    answer: false
+    explanation: "En AOT no se puede generar IL en runtime; Compile usa un intérprete, mucho más lento."
+  - id: q3
+    type: fill
+    prompt: "Completa: la interfaz recomendada para escribir source generators es `______`."
+    answer: ["IIncrementalGenerator"]
+    explanation: "ISourceGenerator está obsoleta para nuevos generadores por su impacto en el rendimiento del IDE."
+  - id: q4
+    type: mcq
+    prompt: "¿Cuál de estos argumentos NO es válido para un atributo?"
+    options:
+      - "[Foo(typeof(string))]"
+      - "[Foo(\"texto\")]"
+      - "[Foo(new DateTime(2026, 1, 1))]"
+      - "[Foo(MiEnum.Valor)]"
+    answer: 2
+    explanation: "Los argumentos deben ser constantes en compilación; DateTime no es un tipo constante permitido."
+  - id: q5
+    type: mcq
+    prompt: "¿Qué opción de System.Text.Json es compatible con Native AOT y evita reflexión en runtime?"
+    options:
+      - "JsonSerializer.Serialize(obj) sin opciones"
+      - "Un JsonSerializerContext generado con [JsonSerializable]"
+      - "Newtonsoft.Json con dynamic"
+      - "BinaryFormatter"
+    answer: 1
+    explanation: "El source generator de System.Text.Json produce los metadatos y el código de serialización en compilación."
+  - id: q6
+    type: tf
+    prompt: "Cada llamada a `GetCustomAttributes()` devuelve las mismas instancias de los atributos."
+    answer: false
+    explanation: "Crea instancias nuevas cada vez; por eso conviene cachear el resultado."
+  - id: q7
+    type: mcq
+    prompt: "¿Qué atributo indica que un método usa reflexión no analizable y no es seguro para trimming?"
+    options: ["[Obsolete]", "[RequiresUnreferencedCode]", "[MethodImpl]", "[SkipLocalsInit]"]
+    answer: 1
+    explanation: "RequiresUnreferencedCode propaga una advertencia a los llamadores cuando se publica con trimming."
+  - id: q8
+    type: mcq
+    prompt: "¿Cómo resuelve `dynamic` las llamadas a miembros?"
+    options:
+      - "En compilación, igual que var"
+      - "En runtime mediante el DLR con caché en el punto de llamada"
+      - "Mediante source generators"
+      - "Con Reflection.Emit siempre"
+    answer: 1
+    explanation: "El compilador emite call sites del DLR que enlazan en runtime y cachean el resultado por tipo."

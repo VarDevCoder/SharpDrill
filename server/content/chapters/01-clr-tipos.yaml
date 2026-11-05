@@ -1,0 +1,202 @@
+id: ch01
+number: 1
+title: "CLR y sistema de tipos"
+level: "Senior"
+summary: "Tipos por valor y por referencia, stack vs heap, boxing, structs bien diseñados y semántica de copia."
+objectives:
+  - "Explicar dónde vive realmente cada valor (y por qué 'los structs van al stack' es una simplificación)."
+  - "Detectar boxing oculto y copias defensivas."
+  - "Decidir con criterio entre class, struct, readonly struct y record struct."
+
+sections:
+  - id: s1
+    title: "Valor vs referencia: lo que de verdad importa"
+    body: |
+      En .NET hay dos categorías de tipos:
+
+      - **Tipos por valor** (`struct`, `enum`, primitivos como `int`, `double`, `bool`): la variable **contiene** los datos. Asignar copia todos los campos.
+      - **Tipos por referencia** (`class`, `interface`, `delegate`, `string`, arrays): la variable contiene una **referencia** a un objeto en el heap administrado. Asignar copia la referencia, no el objeto.
+
+      ```csharp
+      struct PointS { public int X; }
+      class  PointC { public int X; }
+
+      var s1 = new PointS { X = 1 }; var s2 = s1; s2.X = 99; // s1.X sigue siendo 1
+      var c1 = new PointC { X = 1 }; var c2 = c1; c2.X = 99; // c1.X ahora es 99
+      ```
+
+      La frase "los structs viven en el stack" es una **simplificación**. Un struct vive *donde vive su contenedor*: un `int` local suele estar en el stack (o en un registro), pero un `int` que es campo de una clase vive **dentro de ese objeto en el heap**. Un array `int[]` es un objeto en el heap con los enteros inline. Lo que define a un tipo por valor es su **semántica de copia**, no su ubicación.
+
+      La ubicación real la decide el compilador/JIT: variables capturadas por lambdas o que cruzan un `await` se mueven a objetos del heap (clases de closure o la máquina de estados).
+
+  - id: s2
+    title: "Boxing y unboxing"
+    body: |
+      **Boxing** = convertir un tipo por valor a `object` (o a una interfaz). El runtime reserva un objeto en el heap, copia el valor dentro y devuelve la referencia. **Unboxing** = extraer la copia (`(int)obj`) con verificación de tipo exacto.
+
+      ```csharp
+      int n = 42;
+      object o = n;        // boxing: asignación en heap
+      int m = (int)o;      // unboxing
+      long l = (long)o;    // InvalidCastException: el tipo debe coincidir exactamente
+      ```
+
+      Fuentes de boxing **ocultas** que un senior debe reconocer:
+
+      - Pasar un struct a un parámetro `object` o a `string.Format`/interpolación antigua con `params object[]`.
+      - Llamar a un método de interfaz a través de una variable de tipo interfaz: `IComparable c = 5;`.
+      - Colecciones no genéricas (`ArrayList`, `Hashtable`).
+      - `Enum.HasFlag` en runtimes antiguos y `GetHashCode`/`Equals` no sobrescritos en structs (usan reflexión sobre `ValueType`).
+
+      Cómo evitarlo: genéricos con restricción (`where T : IComparable<T>`) usan una llamada *constrained* sin boxing; sobrescribe `Equals(T)` implementando `IEquatable<T>` en tus structs.
+
+  - id: s3
+    title: "Diseñar structs correctamente"
+    body: |
+      Guía práctica para `struct`:
+
+      1. Representa **un único valor lógico** (coordenada, dinero, rango).
+      2. Pequeño: la guía histórica es **≤ 16 bytes**; más grande implica copias costosas.
+      3. **Inmutable**: declara `readonly struct`. Así el compilador garantiza que ningún miembro modifica `this`.
+      4. Implementa `IEquatable<T>` (o usa `record struct`) para evitar el `Equals` por reflexión.
+
+      **Copias defensivas**: si accedes a un struct *no readonly* a través de un campo `readonly` o un parámetro `in`, el compilador hace una copia antes de cada llamada a método, porque no puede garantizar que el método no mute el valor.
+
+      ```csharp
+      struct Mutable { public int V; public void Inc() => V++; }
+      class Holder {
+          readonly Mutable _m;
+          public void Test() { _m.Inc(); _m.Inc(); Console.WriteLine(_m.V); } // imprime 0
+      }
+      ```
+
+      Con `readonly struct` (o miembros `readonly`) desaparecen esas copias y además el código es más honesto.
+
+  - id: s4
+    title: "ref, in, out y ref readonly"
+    body: |
+      Modificadores para pasar **por referencia**:
+
+      | Modificador | ¿Debe inicializarse antes? | ¿El método puede escribir? | Uso típico |
+      |---|---|---|---|
+      | `ref` | Sí | Sí | Modificar el valor del llamador |
+      | `out` | No | Debe asignar | Múltiples retornos (`TryParse`) |
+      | `in` | Sí | No | Pasar structs grandes sin copiar |
+      | `ref readonly` | Sí | No | Como `in`, pero exige pasar una variable (C# 12) |
+
+      Los **ref returns** y **ref locals** permiten devolver un alias a un elemento sin copiarlo:
+
+      ```csharp
+      ref int FindFirst(int[] arr, int value) {
+          for (int i = 0; i < arr.Length; i++)
+              if (arr[i] == value) return ref arr[i];
+          throw new InvalidOperationException();
+      }
+      ref int slot = ref FindFirst(data, 7);
+      slot = 0; // modifica el array original
+      ```
+
+      Ojo: `in` con un struct no readonly provoca copias defensivas; combínalo siempre con `readonly struct`.
+
+cards:
+  - id: c1
+    front: "¿Qué define realmente a un tipo por valor: su ubicación o su semántica?"
+    back: "Su **semántica de copia**: asignar copia los datos. La ubicación (stack, registro o dentro de un objeto en el heap) depende del contenedor y de decisiones del compilador/JIT."
+  - id: c2
+    front: "¿Qué ocurre exactamente al hacer boxing de un int?"
+    back: "Se reserva un objeto en el heap administrado (con header y puntero a la tabla de métodos), se copia el valor dentro y se devuelve una referencia. Implica asignación y presión sobre el GC."
+  - id: c3
+    front: "¿Por qué un unboxing `(long)obj` falla si obj contiene un int boxeado?"
+    back: "El unboxing exige el **tipo exacto** (o su enum subyacente). Hay que hacer `(long)(int)obj`."
+  - id: c4
+    front: "¿Qué es una copia defensiva?"
+    back: "Una copia que el compilador hace de un struct **no readonly** al invocar un miembro a través de un campo `readonly`, un parámetro `in` o un `ref readonly`, para proteger la inmutabilidad. Se evita declarando `readonly struct`."
+  - id: c5
+    front: "¿Cuál es la guía de tamaño para un struct?"
+    back: "Aproximadamente ≤ 16 bytes, que represente un único valor lógico, inmutable y que no se haga boxing con frecuencia."
+  - id: c6
+    front: "¿Cómo evitar boxing al llamar métodos de interfaz sobre un struct en código genérico?"
+    back: "Con una restricción genérica: `void M<T>(T x) where T : IComparable<T>`. El JIT emite una llamada *constrained* sin boxing y especializa el código para cada tipo por valor."
+  - id: c7
+    front: "Diferencia entre `in` y `ref readonly` como parámetro (C# 12)."
+    back: "Ambos pasan por referencia de solo lectura. `in` permite pasar literales/temporales (el compilador crea una variable oculta); `ref readonly` exige una variable y avisa si no la pasas, dejando la intención explícita."
+  - id: c8
+    front: "¿Por qué sobrescribir Equals/GetHashCode en structs?"
+    back: "La implementación por defecto de `ValueType.Equals` puede usar **reflexión** (si hay campos de referencia o padding) y es lenta; además `Equals(object)` provoca boxing. Implementa `IEquatable<T>` o usa `record struct`."
+
+questions:
+  - id: q1
+    type: mcq
+    tag: "¿Qué imprime?"
+    prompt: "¿Qué imprime este código?"
+    code: |
+      struct Point { public int X; }
+
+      var a = new Point { X = 1 };
+      var b = a;
+      b.X = 2;
+      Console.WriteLine(a.X);
+    options: ["1", "2", "0", "No compila"]
+    answer: 0
+    explanation: "Point es un struct: `var b = a` copia el valor completo. Modificar b no afecta a a, que sigue valiendo 1."
+  - id: q2
+    type: mcq
+    tag: "¿Qué imprime?"
+    prompt: "¿Qué imprime?"
+    code: |
+      object a = 5;
+      object b = 5;
+      Console.WriteLine(a == b);
+      Console.WriteLine(a.Equals(b));
+    options: ["True / True", "False / True", "False / False", "True / False"]
+    answer: 1
+    explanation: "Cada asignación hace boxing en un objeto distinto. `==` entre `object` compara referencias (False). `Equals` es virtual y Int32.Equals compara valores (True)."
+  - id: q3
+    type: tf
+    prompt: "Un campo `int` declarado dentro de una clase se almacena en el stack."
+    answer: false
+    explanation: "Vive dentro del objeto que lo contiene, en el heap administrado. Los tipos por valor viven donde vive su contenedor."
+  - id: q4
+    type: mcq
+    tag: "¿Qué imprime?"
+    prompt: "¿Qué imprime `Test()`?"
+    code: |
+      struct Counter { public int V; public void Inc() => V++; }
+
+      class Holder {
+          readonly Counter _c;
+          public void Test() {
+              _c.Inc();
+              _c.Inc();
+              Console.WriteLine(_c.V);
+          }
+      }
+    options: ["2", "0", "1", "Error de compilación"]
+    answer: 1
+    explanation: "Como `_c` es un campo readonly y `Counter` no es readonly struct, el compilador invoca `Inc` sobre una copia defensiva cada vez. El campo original nunca cambia: imprime 0."
+  - id: q5
+    type: mcq
+    prompt: "¿Cuál de estas operaciones provoca boxing?"
+    options:
+      - "List<int> list = new(); list.Add(5);"
+      - "IComparable c = 5;"
+      - "Span<int> s = stackalloc int[4];"
+      - "int x = 5; ref int r = ref x;"
+    answer: 1
+    explanation: "Asignar un tipo por valor a una variable de tipo interfaz requiere boxing. List<int> es genérico y especializado: no hay boxing."
+  - id: q6
+    type: fill
+    prompt: "Completa: para que el compilador garantice que ningún miembro de un struct modifica su estado y evitar copias defensivas, se declara como `______ struct`."
+    answer: ["readonly"]
+    explanation: "`readonly struct` hace que todos los campos sean readonly y que `this` sea de solo lectura en todos los miembros."
+  - id: q7
+    type: mcq
+    prompt: "¿Qué modificador usarías en `bool TryParse(string s, ___ int value)`?"
+    options: ["ref", "in", "out", "ref readonly"]
+    answer: 2
+    explanation: "`out` no requiere que el llamador inicialice la variable y obliga al método a asignarla antes de retornar."
+  - id: q8
+    type: tf
+    prompt: "Las variables locales capturadas por una lambda pueden terminar almacenadas en el heap."
+    answer: true
+    explanation: "El compilador las mueve a un objeto 'display class' (closure) en el heap para que sobrevivan a la llamada del método."

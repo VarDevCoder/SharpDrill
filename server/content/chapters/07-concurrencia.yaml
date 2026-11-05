@@ -1,0 +1,194 @@
+id: ch07
+number: 7
+title: "Concurrencia y paralelismo"
+level: "Senior"
+summary: "Condiciones de carrera, lock/Monitor, Interlocked, colecciones concurrentes, SemaphoreSlim, Channels y paralelismo de datos."
+objectives:
+  - "Identificar operaciones no atómicas y condiciones de carrera."
+  - "Elegir la primitiva de sincronización adecuada (sync vs async)."
+  - "Diseñar pipelines productor/consumidor con backpressure."
+
+sections:
+  - id: s1
+    title: "Atomicidad y condiciones de carrera"
+    body: |
+      `contador++` **no es atómico**: son tres pasos (leer, sumar, escribir). Dos hilos pueden leer el mismo valor y perder un incremento.
+
+      ```csharp
+      int contador = 0;
+      Parallel.For(0, 100_000, _ => contador++);           // resultado < 100000 casi siempre
+      Parallel.For(0, 100_000, _ => Interlocked.Increment(ref contador)); // correcto
+      ```
+
+      **Interlocked** ofrece operaciones atómicas sin bloqueo: `Increment`, `Add`, `Exchange`, `CompareExchange` (base de algoritmos *lock-free*).
+
+      **volatile** solo garantiza visibilidad/orden de lecturas y escrituras individuales; **no** hace atómico `x++`. En la práctica, prefiere `Volatile.Read/Write`, `Interlocked` o un `lock`.
+
+      *Check-then-act* también es una carrera:
+
+      ```csharp
+      if (!dict.ContainsKey(k)) dict[k] = Crear(); // dos hilos pueden crear a la vez
+      ```
+
+  - id: s2
+    title: "lock, Monitor y el nuevo tipo Lock"
+    body: |
+      `lock (obj) { ... }` se compila a `Monitor.Enter/Exit` dentro de un `try/finally`. Es **reentrante** para el mismo hilo.
+
+      Reglas:
+
+      - Bloquea sobre un objeto **privado y dedicado** (`private readonly object _gate = new();`), nunca sobre `this`, `typeof(X)` ni strings (internados y compartidos).
+      - Secciones críticas cortas; nunca llames a código desconocido (callbacks, eventos) con el lock tomado.
+      - **No se puede usar `await` dentro de `lock`** (error CS1996): el lock está ligado al hilo y la continuación puede correr en otro.
+
+      Desde **.NET 9 / C# 13** existe `System.Threading.Lock`. `lock` sobre una instancia de `Lock` usa su API optimizada (`EnterScope()`) en lugar de Monitor:
+
+      ```csharp
+      private readonly Lock _gate = new();
+      public void Add(Item i) { lock (_gate) { _items.Add(i); } }
+      ```
+
+      Otras primitivas: `ReaderWriterLockSlim` (muchas lecturas, pocas escrituras), `SpinLock` (esperas extremadamente cortas), `Mutex` (entre procesos).
+
+  - id: s3
+    title: "Sincronización asíncrona y colecciones concurrentes"
+    body: |
+      Para exclusión mutua en código async usa **SemaphoreSlim**:
+
+      ```csharp
+      private readonly SemaphoreSlim _sem = new(1, 1);
+
+      public async Task GuardarAsync(Doc d, CancellationToken ct)
+      {
+          await _sem.WaitAsync(ct);
+          try { await _repo.SaveAsync(d, ct); }
+          finally { _sem.Release(); }
+      }
+      ```
+
+      **ConcurrentDictionary<TKey, TValue>**:
+
+      - `GetOrAdd(key, factory)` es atómico en la inserción, pero **la factory puede ejecutarse varias veces** si varios hilos compiten. Si la creación es cara o tiene efectos, guarda `Lazy<T>`: `GetOrAdd(k, _ => new Lazy<T>(...)).Value`.
+      - `AddOrUpdate` puede invocar el delegado de actualización varias veces (reintenta con CompareExchange).
+      - `Count` y la enumeración son instantáneas débiles; no las uses para lógica de decisión.
+
+      Otras: `ConcurrentQueue`, `ConcurrentBag` (optimizada para que el mismo hilo produzca y consuma), `ImmutableArray/ImmutableDictionary` (copy-on-write, lecturas sin bloqueo), `FrozenDictionary` (.NET 8, lecturas ultrarrápidas para datos que no cambian).
+
+  - id: s4
+    title: "Channels y paralelismo de datos"
+    body: |
+      **System.Threading.Channels** es la herramienta moderna para productor/consumidor async:
+
+      ```csharp
+      var canal = Channel.CreateBounded<Trabajo>(new BoundedChannelOptions(100)
+      {
+          FullMode = BoundedChannelFullMode.Wait, // backpressure: el productor espera
+          SingleReader = true
+      });
+
+      // Productor
+      await canal.Writer.WriteAsync(trabajo, ct);
+      canal.Writer.Complete();
+
+      // Consumidor
+      await foreach (var t in canal.Reader.ReadAllAsync(ct))
+          await ProcesarAsync(t, ct);
+      ```
+
+      Paralelismo:
+
+      - **CPU-bound**: `Parallel.For/ForEach` o PLINQ (`AsParallel()`).
+      - **I/O-bound** con límite de concurrencia: `Parallel.ForEachAsync(items, new ParallelOptions { MaxDegreeOfParallelism = 8 }, async (x, ct) => ...)`.
+      - No uses `Parallel.ForEach` con lambdas `async`: se convierten en `async void` y el bucle termina sin esperar.
+      - `Task.WhenAll(items.Select(ProcesarAsync))` lanza **todas** a la vez: puede saturar la BD o la API remota.
+
+cards:
+  - id: c1
+    front: "¿Por qué `x++` no es seguro entre hilos?"
+    back: "Es leer-modificar-escribir en tres pasos; dos hilos pueden leer el mismo valor y una de las escrituras se pierde. Usa `Interlocked.Increment(ref x)`."
+  - id: c2
+    front: "¿Qué garantiza y qué NO garantiza `volatile`?"
+    back: "Garantiza visibilidad y orden de lecturas/escrituras individuales. NO hace atómicas operaciones compuestas como `x++` o check-then-act."
+  - id: c3
+    front: "¿Por qué no hacer `lock(this)` o `lock(\"clave\")`?"
+    back: "Son objetos accesibles desde fuera (y los strings están internados y compartidos en todo el proceso): otro código puede bloquear sobre ellos y causar deadlocks."
+  - id: c4
+    front: "¿Por qué no se permite `await` dentro de `lock`?"
+    back: "Monitor tiene afinidad de hilo: debe liberarlo el mismo hilo que lo tomó, y tras un await la continuación puede ejecutarse en otro. Usa `SemaphoreSlim.WaitAsync`."
+  - id: c5
+    front: "Trampa de `ConcurrentDictionary.GetOrAdd(key, factory)`."
+    back: "La factory puede ejecutarse más de una vez en carreras (solo un valor se guarda). Para creación cara o con efectos, almacena `Lazy<T>`."
+  - id: c6
+    front: "¿Qué aporta un Channel bounded con FullMode = Wait?"
+    back: "**Backpressure**: cuando la cola está llena, `WriteAsync` espera, de modo que un productor rápido no agota la memoria."
+  - id: c7
+    front: "¿Qué pasa con `Parallel.ForEach(items, async x => await F(x))`?"
+    back: "La lambda se convierte en `async void`; ForEach termina en cuanto las tareas empiezan, sin esperarlas y sin propagar excepciones. Usa `Parallel.ForEachAsync`."
+  - id: c8
+    front: "¿Qué es System.Threading.Lock (.NET 9)?"
+    back: "Un tipo de bloqueo dedicado; `lock` sobre él usa `EnterScope()` en vez de Monitor, con mejor rendimiento y una intención explícita."
+
+questions:
+  - id: q1
+    type: mcq
+    tag: "¿Qué imprime?"
+    prompt: "¿Qué imprime típicamente en una máquina multinúcleo?"
+    code: |
+      int contador = 0;
+      Parallel.For(0, 1_000_000, _ => contador++);
+      Console.WriteLine(contador == 1_000_000);
+    options: ["True siempre", "False casi siempre", "No compila", "Lanza excepción"]
+    answer: 1
+    explanation: "Hay una condición de carrera: incrementos concurrentes se pierden. Se arregla con Interlocked.Increment."
+  - id: q2
+    type: mcq
+    prompt: "¿Qué primitiva usarías para limitar a 1 la ejecución concurrente de un método async?"
+    options: ["lock", "Monitor.Enter", "SemaphoreSlim con WaitAsync", "volatile"]
+    answer: 2
+    explanation: "SemaphoreSlim(1,1) con WaitAsync permite esperar asíncronamente y no tiene afinidad de hilo."
+  - id: q3
+    type: tf
+    prompt: "La factory de `ConcurrentDictionary.GetOrAdd(key, factory)` se ejecuta como máximo una vez por clave."
+    answer: false
+    explanation: "Varios hilos pueden ejecutarla simultáneamente; solo uno de los resultados se almacena."
+  - id: q4
+    type: mcq
+    prompt: "¿Por qué este código no compila?"
+    code: |
+      lock (_gate)
+      {
+          await _repo.SaveAsync();
+      }
+    options:
+      - "Porque _gate debe ser string"
+      - "Porque no se puede usar await dentro de una sentencia lock (CS1996)"
+      - "Porque lock requiere using"
+      - "Sí compila"
+    answer: 1
+    explanation: "Monitor tiene afinidad de hilo y la continuación podría correr en otro hilo, por eso el compilador lo prohíbe."
+  - id: q5
+    type: fill
+    prompt: "Completa: la clase con operaciones atómicas como Increment y CompareExchange es `______`."
+    answer: ["Interlocked", "System.Threading.Interlocked"]
+    explanation: "Interlocked usa instrucciones atómicas del procesador."
+  - id: q6
+    type: mcq
+    prompt: "Debes llamar a una API remota para 10.000 ids con un máximo de 10 peticiones concurrentes. ¿Qué eliges?"
+    options:
+      - "await Task.WhenAll(ids.Select(CallAsync))"
+      - "Parallel.ForEach(ids, async id => await CallAsync(id))"
+      - "Parallel.ForEachAsync(ids, new ParallelOptions { MaxDegreeOfParallelism = 10 }, ...)"
+      - "foreach con .Result"
+    answer: 2
+    explanation: "ForEachAsync espera correctamente y limita la concurrencia. WhenAll lanza las 10.000 a la vez; Parallel.ForEach con async produce async void."
+  - id: q7
+    type: tf
+    prompt: "Declarar un campo como `volatile` hace que `campo++` sea atómico."
+    answer: false
+    explanation: "volatile no cambia la naturaleza leer-modificar-escribir del incremento."
+  - id: q8
+    type: mcq
+    prompt: "¿Qué colección es ideal para un mapa de configuración que se construye una vez al arrancar y se lee millones de veces?"
+    options: ["Dictionary con lock", "ConcurrentDictionary", "FrozenDictionary", "Hashtable"]
+    answer: 2
+    explanation: "FrozenDictionary (.NET 8) invierte más en la construcción para optimizar las lecturas y es inmutable, por tanto seguro entre hilos."

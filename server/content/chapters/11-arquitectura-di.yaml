@@ -1,0 +1,182 @@
+id: ch11
+number: 11
+title: "Arquitectura, inyección de dependencias y errores"
+level: "Senior"
+summary: "Tiempos de vida en el contenedor de DI, captive dependencies, Options pattern, SOLID aplicado, manejo de excepciones y testing."
+objectives:
+  - "Elegir y validar tiempos de vida de servicios."
+  - "Diseñar límites claros entre dominio, aplicación e infraestructura."
+  - "Gestionar errores con excepciones y resultados de forma coherente."
+
+sections:
+  - id: s1
+    title: "Tiempos de vida y captive dependencies"
+    body: |
+      `Microsoft.Extensions.DependencyInjection` ofrece tres tiempos de vida:
+
+      | Lifetime | Instancia | Ejemplos |
+      |---|---|---|
+      | `Singleton` | Una para toda la app | Cachés, `HttpClient` configurado, `TimeProvider` |
+      | `Scoped` | Una por scope (en ASP.NET Core, por petición) | `DbContext`, unidad de trabajo |
+      | `Transient` | Una nueva cada vez que se resuelve | Servicios ligeros sin estado |
+
+      **Captive dependency**: un servicio de vida larga captura uno de vida corta. Ejemplo: un `Singleton` que recibe un `DbContext` (scoped) por constructor. El `DbContext` queda vivo para siempre, compartido entre peticiones concurrentes (no es thread-safe) y con datos obsoletos.
+
+      ```csharp
+      builder.Host.UseDefaultServiceProvider(o =>
+      {
+          o.ValidateScopes = true;    // detecta resolver scoped desde el root (activo en Development)
+          o.ValidateOnBuild = true;   // valida que todo el grafo se pueda construir al arrancar
+      });
+      ```
+
+      Si un singleton necesita algo scoped (por ejemplo un `BackgroundService`), inyecta `IServiceScopeFactory` y crea un scope por unidad de trabajo.
+
+      Los servicios **transient y scoped que implementan IDisposable** los libera el scope que los creó. Resolver transients disposables desde el contenedor raíz los retiene hasta que la app termina.
+
+  - id: s2
+    title: "Options pattern y configuración"
+    body: |
+      Enlaza configuración a clases tipadas y valida al arrancar:
+
+      ```csharp
+      builder.Services.AddOptions<SmtpOptions>()
+          .Bind(builder.Configuration.GetSection("Smtp"))
+          .ValidateDataAnnotations()
+          .ValidateOnStart();
+      ```
+
+      | Interfaz | Lifetime | Recarga cambios |
+      |---|---|---|
+      | `IOptions<T>` | Singleton | No (lee una vez) |
+      | `IOptionsSnapshot<T>` | Scoped | Sí, por petición |
+      | `IOptionsMonitor<T>` | Singleton | Sí, con `OnChange` |
+
+      No inyectes `IOptionsSnapshot<T>` en un singleton (captive dependency): usa `IOptionsMonitor<T>`.
+
+      Para tiempo, inyecta **`TimeProvider`** (.NET 8) en lugar de usar `DateTime.UtcNow` directamente: hace el código testeable (`FakeTimeProvider`).
+
+  - id: s3
+    title: "Límites de arquitectura y SOLID aplicado"
+    body: |
+      Una arquitectura limpia/hexagonal separa:
+
+      - **Dominio**: entidades, value objects, reglas de negocio. Sin dependencias de frameworks.
+      - **Aplicación**: casos de uso que orquestan el dominio y definen *puertos* (interfaces) que necesitan.
+      - **Infraestructura**: implementaciones concretas (EF Core, colas, HTTP).
+      - **Presentación**: API, UI.
+
+      La regla de dependencias: el código apunta **hacia dentro** (el dominio no conoce EF Core). Es el **principio de inversión de dependencias** (la D de SOLID): los módulos de alto nivel definen la abstracción y los de bajo nivel la implementan.
+
+      Señales de que una abstracción sobra: una interfaz con una sola implementación que nunca se sustituirá ni se mockeará, repositorios genéricos que solo reenvían a `DbSet<T>`, o capas que solo copian DTOs. Pragmatismo: la complejidad debe justificarse con un beneficio concreto (testabilidad, intercambiabilidad, límites de equipo).
+
+      **Value objects** con `readonly record struct` o `record` evitan la *obsesión por primitivos*:
+
+      ```csharp
+      public readonly record struct Email
+      {
+          public string Value { get; }
+          public Email(string value) =>
+              Value = value.Contains('@') ? value.Trim().ToLowerInvariant()
+                    : throw new ArgumentException("Email inválido", nameof(value));
+      }
+      ```
+
+  - id: s4
+    title: "Excepciones, resultados y testing"
+    body: |
+      Buenas prácticas con excepciones:
+
+      - `throw;` **conserva** el stack trace original; `throw ex;` lo **reinicia** en esa línea.
+      - Envuelve con contexto: `throw new ImportException("Fila 42", ex);` (conserva `InnerException`).
+      - Captura excepciones concretas; `catch (Exception)` solo en los bordes (middleware, workers) para registrar.
+      - Filtros: `catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.NotFound)` no desenrolla el stack si no coincide.
+      - Las excepciones son caras: no las uses para flujo normal (validación de entrada esperada). Para errores de negocio esperados, un tipo `Result<T>` hace explícito el fallo.
+
+      En ASP.NET Core, centraliza con `IExceptionHandler` (.NET 8) y devuelve **ProblemDetails** (RFC 9457).
+
+      Testing:
+
+      - **Unitarios** (xUnit/NUnit) sobre dominio y casos de uso; dobles de prueba (stubs/mocks/fakes) solo para puertos externos.
+      - **Integración** con `WebApplicationFactory<Program>` (servidor en memoria) y **Testcontainers** (BD real en Docker) en lugar de `UseInMemoryDatabase`, que no se comporta como un motor relacional.
+
+cards:
+  - id: c1
+    front: "¿Qué es una captive dependency?"
+    back: "Un servicio de vida larga (p. ej. singleton) que retiene uno de vida más corta (scoped/transient), extendiendo su vida indebidamente: DbContext compartido entre peticiones, datos obsoletos, problemas de concurrencia."
+  - id: c2
+    front: "¿Qué detectan ValidateScopes y ValidateOnBuild?"
+    back: "ValidateScopes: resolver servicios scoped desde el proveedor raíz (o inyectarlos en singletons). ValidateOnBuild: que todo el grafo registrado se puede construir al arrancar."
+  - id: c3
+    front: "¿Cómo usar un servicio scoped desde un BackgroundService?"
+    back: "Inyectar `IServiceScopeFactory`, crear un scope (`CreateAsyncScope()`) por unidad de trabajo y resolver el servicio dentro."
+  - id: c4
+    front: "IOptions vs IOptionsSnapshot vs IOptionsMonitor."
+    back: "IOptions: singleton, sin recarga. IOptionsSnapshot: scoped, recarga por petición. IOptionsMonitor: singleton con recarga y notificación OnChange."
+  - id: c5
+    front: "Diferencia entre `throw;` y `throw ex;`."
+    back: "`throw;` relanza conservando el stack trace original; `throw ex;` lo reinicia desde esa línea y se pierde dónde ocurrió realmente."
+  - id: c6
+    front: "¿Para qué sirve TimeProvider?"
+    back: "Abstracción de reloj y temporizadores (.NET 8) que permite controlar el tiempo en tests (`FakeTimeProvider`) en lugar de depender de DateTime.UtcNow."
+  - id: c7
+    front: "¿Qué dice la regla de dependencias en Clean Architecture?"
+    back: "Las dependencias de código apuntan hacia dentro: el dominio no depende de infraestructura ni de frameworks; la infraestructura implementa interfaces definidas por las capas internas."
+  - id: c8
+    front: "¿Por qué evitar UseInMemoryDatabase para tests de integración?"
+    back: "No es relacional: no aplica restricciones, transacciones ni traduce SQL igual; los tests pasan y producción falla. Mejor SQLite en memoria o Testcontainers."
+
+questions:
+  - id: q1
+    type: mcq
+    prompt: "Registras `services.AddSingleton<ReportService>()` y ReportService recibe `AppDbContext` (scoped) por constructor. ¿Qué ocurre en Development con la configuración por defecto?"
+    options:
+      - "Funciona sin problemas"
+      - "Se lanza una excepción (al arrancar o al resolverlo) porque la validación de scopes detecta la captive dependency"
+      - "El DbContext se convierte automáticamente en singleton sin avisar"
+      - "Se crea un DbContext nuevo por petición"
+    answer: 1
+    explanation: "En Development ASP.NET Core activa ValidateScopes y ValidateOnBuild: no se puede consumir un servicio scoped desde un singleton y falla de inmediato."
+  - id: q2
+    type: tf
+    prompt: "`throw ex;` dentro de un catch conserva el stack trace original de la excepción."
+    answer: false
+    explanation: "Lo reinicia. Usa `throw;` o `ExceptionDispatchInfo.Capture(ex).Throw()` para conservarlo."
+  - id: q3
+    type: mcq
+    prompt: "¿Qué tipo de opciones debe inyectar un servicio singleton que necesita reaccionar a cambios de configuración?"
+    options: ["IOptions<T>", "IOptionsSnapshot<T>", "IOptionsMonitor<T>", "IConfiguration directamente en cada llamada"]
+    answer: 2
+    explanation: "IOptionsMonitor es singleton y expone CurrentValue y OnChange. IOptionsSnapshot es scoped."
+  - id: q4
+    type: fill
+    prompt: "Completa: en ASP.NET Core la clase que levanta la app en memoria para tests de integración es `______<Program>`."
+    answer: ["WebApplicationFactory"]
+    explanation: "Proviene de Microsoft.AspNetCore.Mvc.Testing y usa TestServer."
+  - id: q5
+    type: mcq
+    prompt: "¿Qué ventaja tiene un filtro `catch (Exception e) when (Condicion(e))`?"
+    options:
+      - "Ninguna, es azúcar sintáctico de un if dentro del catch"
+      - "Si la condición es falsa, el stack no se desenrolla y la excepción sigue su camino intacta"
+      - "Hace la excepción más barata"
+      - "Captura también StackOverflowException"
+    answer: 1
+    explanation: "Los filtros se evalúan antes de desenrollar: el depurador y los dumps conservan el contexto original si no coincide."
+  - id: q6
+    type: tf
+    prompt: "Según la inversión de dependencias, la capa de dominio debe referenciar el paquete de EF Core para definir sus repositorios."
+    answer: false
+    explanation: "El dominio/aplicación define interfaces; la infraestructura (que sí referencia EF Core) las implementa."
+  - id: q7
+    type: mcq
+    prompt: "¿Qué lifetime es habitual para un DbContext en ASP.NET Core?"
+    options: ["Singleton", "Scoped", "Transient", "Thread-static"]
+    answer: 1
+    explanation: "AddDbContext lo registra como scoped: una instancia por petición, que es la unidad de trabajo natural."
+  - id: q8
+    type: mcq
+    prompt: "¿Qué formato estándar para errores HTTP produce ASP.NET Core con AddProblemDetails?"
+    options: ["SOAP Fault", "ProblemDetails (RFC 9457)", "JSON-RPC error", "GraphQL errors"]
+    answer: 1
+    explanation: "ProblemDetails define type, title, status, detail e instance (RFC 9457, sucesor de la 7807)."

@@ -1,0 +1,196 @@
+id: ch03
+number: 3
+title: "Genéricos avanzados"
+level: "Senior"
+summary: "Restricciones, varianza, reificación en el JIT, campos estáticos por tipo cerrado y generic math."
+objectives:
+  - "Entender cómo el JIT compila genéricos para tipos por valor y por referencia."
+  - "Aplicar covarianza y contravarianza con seguridad."
+  - "Usar static abstract members para escribir algoritmos numéricos genéricos."
+
+sections:
+  - id: s1
+    title: "Reificación: cómo se compilan los genéricos"
+    body: |
+      A diferencia de Java (*type erasure*), los genéricos de .NET están **reificados**: el tipo `List<int>` existe en tiempo de ejecución y `typeof(T)` funciona.
+
+      El JIT genera código así:
+
+      - Para cada **tipo por valor** distinto (`List<int>`, `List<double>`) genera **código especializado**. Sin boxing y con inlining óptimo.
+      - Para **todos los tipos por referencia** comparte una sola versión (`List<__Canon>`), ya que todas las referencias tienen el mismo tamaño.
+
+      Consecuencia directa: **los campos estáticos son por tipo cerrado**.
+
+      ```csharp
+      static class TypeCache<T>
+      {
+          public static readonly string Name = typeof(T).Name; // se calcula una vez por T
+      }
+      ```
+
+      Este patrón (*static generic cache*) es muy usado para cachear metadatos o delegados compilados por tipo sin diccionarios ni locks.
+
+  - id: s2
+    title: "Restricciones"
+    body: |
+      | Restricción | Significado |
+      |---|---|
+      | `where T : class` | Tipo por referencia (`class?` admite nulables) |
+      | `where T : struct` | Tipo por valor no nulable |
+      | `where T : unmanaged` | Struct sin referencias (apto para punteros/`stackalloc`) |
+      | `where T : notnull` | Tipo no nulable (valor o referencia) |
+      | `where T : new()` | Constructor público sin parámetros |
+      | `where T : Base` / `IFoo` | Hereda / implementa |
+      | `where T : Enum` / `Delegate` | Desde C# 7.3 |
+      | `allows ref struct` | Anti-restricción (C# 13): permite `Span<T>` como argumento |
+
+      ```csharp
+      public static T Max<T>(T a, T b) where T : IComparable<T>
+          => a.CompareTo(b) >= 0 ? a : b;
+      ```
+
+      Ojo con `new()`: `new T()` se implementa con `Activator.CreateInstance<T>()`, más lento que una fábrica `Func<T>`.
+
+  - id: s3
+    title: "Covarianza y contravarianza"
+    body: |
+      Solo aplica a **interfaces y delegados genéricos** y solo con **tipos por referencia**.
+
+      - **Covarianza** (`out T`): T solo aparece en posiciones de salida. `IEnumerable<string>` → `IEnumerable<object>`.
+      - **Contravarianza** (`in T`): T solo aparece en entradas. `Action<object>` → `Action<string>`; `IComparer<Animal>` sirve como `IComparer<Perro>`.
+
+      ```csharp
+      IEnumerable<object> objs = new List<string> { "a" };   // OK (covariante)
+      Action<string> print = (object o) => Console.WriteLine(o); // OK (contravariante)
+      IEnumerable<object> ints = new List<int>();            // ERROR: int es tipo por valor
+      ```
+
+      Los **arrays son covariantes de forma insegura** (herencia de Java):
+
+      ```csharp
+      object[] arr = new string[1];
+      arr[0] = 42; // ArrayTypeMismatchException en tiempo de ejecución
+      ```
+
+      Por eso cada escritura en un array de referencias implica una comprobación de tipo; un motivo más para preferir `IReadOnlyList<T>` en APIs públicas.
+
+  - id: s4
+    title: "Static abstract members y generic math"
+    body: |
+      Desde C# 11 / .NET 7 las interfaces pueden declarar **miembros estáticos abstractos**, incluidos operadores. Esto permite *generic math*:
+
+      ```csharp
+      public static T Sum<T>(ReadOnlySpan<T> values) where T : INumber<T>
+      {
+          T acc = T.Zero;
+          foreach (var v in values) acc += v;
+          return acc;
+      }
+
+      Sum<int>([1, 2, 3]);       // 6
+      Sum<decimal>([1.5m, 2m]);  // 3.5
+      ```
+
+      También sirve para tus propias abstracciones:
+
+      ```csharp
+      public interface IParseable<TSelf> where TSelf : IParseable<TSelf>
+      {
+          static abstract TSelf Parse(string s);
+      }
+      ```
+
+      El patrón `TSelf : IInterfaz<TSelf>` (*curiously recurring template pattern*) permite que el método estático devuelva el tipo concreto.
+
+cards:
+  - id: c1
+    front: "¿Cómo genera el JIT código para List<int> y List<string>?"
+    back: "Para cada tipo por valor genera código especializado; todos los tipos por referencia comparten una única implementación (`__Canon`)."
+  - id: c2
+    front: "¿Cuántas copias de un campo estático hay en `class Cache<T>`?"
+    back: "Una por cada **tipo cerrado** usado (`Cache<int>`, `Cache<string>`...). Es la base del patrón *static generic cache*."
+  - id: c3
+    front: "¿Qué significa `out T` en una interfaz genérica?"
+    back: "Covarianza: T solo aparece en posiciones de salida, así que `IFoo<Derivada>` puede asignarse a `IFoo<Base>`."
+  - id: c4
+    front: "¿Por qué `IEnumerable<object> x = new List<int>()` no compila?"
+    back: "La varianza solo funciona con tipos por referencia; convertir int a object requiere boxing, lo que cambiaría la representación."
+  - id: c5
+    front: "¿Qué excepción produce la covarianza insegura de arrays?"
+    back: "`ArrayTypeMismatchException`, al escribir un elemento de tipo incompatible en un array cuyo tipo real es más específico."
+  - id: c6
+    front: "¿Qué restricción necesitas para usar `stackalloc T[n]` o punteros a T?"
+    back: "`where T : unmanaged`."
+  - id: c7
+    front: "¿Qué habilita `static abstract` en interfaces?"
+    back: "Declarar miembros estáticos (incluidos operadores y constantes como `T.Zero`) que los tipos deben implementar; base de *generic math* (`INumber<T>`)."
+  - id: c8
+    front: "¿Qué es `allows ref struct` (C# 13)?"
+    back: "Una anti-restricción que permite que el argumento genérico sea un `ref struct` como `Span<T>`; el compilador aplica las reglas de seguridad de ref struct dentro del método."
+
+questions:
+  - id: q1
+    type: mcq
+    tag: "¿Qué imprime?"
+    prompt: "¿Qué imprime?"
+    code: |
+      class Counter<T> { public static int Count; }
+
+      Counter<int>.Count++;
+      Counter<string>.Count++;
+      Counter<int>.Count++;
+      Console.WriteLine($"{Counter<int>.Count},{Counter<string>.Count}");
+    options: ["3,3", "2,1", "1,1", "3,0"]
+    answer: 1
+    explanation: "Cada tipo genérico cerrado tiene sus propios campos estáticos: Counter<int> y Counter<string> son tipos distintos."
+  - id: q2
+    type: mcq
+    prompt: "¿Cuál de estas asignaciones compila?"
+    options:
+      - "IList<object> a = new List<string>();"
+      - "IEnumerable<object> b = new List<string>();"
+      - "IEnumerable<object> c = new List<int>();"
+      - "List<object> d = new List<string>();"
+    answer: 1
+    explanation: "Solo IEnumerable<out T> es covariante. IList<T> y List<T> son invariantes (permiten escribir), y la varianza no aplica a int."
+  - id: q3
+    type: tf
+    prompt: "`Action<object>` puede asignarse a una variable de tipo `Action<string>`."
+    answer: true
+    explanation: "Action<in T> es contravariante: una acción que acepta cualquier object sirve donde se espera una que acepte string."
+  - id: q4
+    type: mcq
+    prompt: "¿Qué ocurre al ejecutar `object[] arr = new string[2]; arr[0] = 1;`?"
+    options: ["No compila", "Funciona y guarda un int boxeado", "ArrayTypeMismatchException", "InvalidCastException"]
+    answer: 2
+    explanation: "Compila por la covarianza de arrays, pero el runtime comprueba el tipo real (string[]) y lanza ArrayTypeMismatchException."
+  - id: q5
+    type: fill
+    prompt: "Completa la restricción para que `Sum<T>` pueda usar `T.Zero` y el operador `+`: `where T : ______<T>`"
+    answer: ["INumber", "System.Numerics.INumber", "INumberBase", "IAdditionOperators"]
+    explanation: "INumber<T> (System.Numerics) agrupa los operadores aritméticos y miembros como T.Zero/T.One."
+  - id: q6
+    type: mcq
+    prompt: "¿Por qué `new T()` con restricción `new()` puede ser un problema de rendimiento en un bucle caliente?"
+    options:
+      - "Porque provoca boxing siempre"
+      - "Porque se implementa mediante Activator.CreateInstance<T>()"
+      - "Porque no puede inlinearse nunca"
+      - "No es un problema, es igual a new Foo()"
+    answer: 1
+    explanation: "El compilador emite Activator.CreateInstance<T>(), que tiene un coste mayor que una llamada directa. Una Func<T> o static abstract factory suele ser más rápida."
+  - id: q7
+    type: tf
+    prompt: "Los genéricos de .NET usan type erasure como Java, por lo que `typeof(T)` no está disponible en runtime."
+    answer: false
+    explanation: "Están reificados: la información de tipo existe en tiempo de ejecución."
+  - id: q8
+    type: mcq
+    prompt: "Llamar a `x.CompareTo(y)` dentro de `M<T>(T x, T y) where T : IComparable<T>` con T = int..."
+    options:
+      - "Hace boxing de x"
+      - "Hace boxing de x e y"
+      - "No hace boxing gracias a la llamada constrained y la especialización"
+      - "Lanza excepción"
+    answer: 2
+    explanation: "El JIT especializa el método para int y emite una llamada constrained directa a Int32.CompareTo(int), sin boxing."

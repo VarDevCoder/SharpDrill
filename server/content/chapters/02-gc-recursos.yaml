@@ -1,0 +1,188 @@
+id: ch02
+number: 2
+title: "Garbage Collector y gestión de recursos"
+level: "Senior"
+summary: "Generaciones, LOH/POH, modos de GC, IDisposable, finalizadores y SafeHandle."
+objectives:
+  - "Explicar el modelo generacional y por qué las asignaciones de vida media son caras."
+  - "Implementar IDisposable/IAsyncDisposable correctamente."
+  - "Saber cuándo (casi nunca) se necesita un finalizador."
+
+sections:
+  - id: s1
+    title: "Modelo generacional"
+    body: |
+      El GC de .NET es **generacional, compactante y basado en trazado** (marca lo alcanzable desde las *raíces*: variables locales activas, campos estáticos, handles del GC, registros).
+
+      - **Gen 0**: objetos recién asignados. Se recolecta muy a menudo y muy rápido.
+      - **Gen 1**: búfer entre objetos efímeros y longevos.
+      - **Gen 2**: objetos de larga vida (cachés, singletons). Recolectarla es caro.
+
+      Hipótesis generacional: *la mayoría de los objetos muere joven*. Lo peor para el rendimiento es la **crisis de la mediana edad**: objetos que sobreviven a Gen 0 y Gen 1, llegan a Gen 2 y luego mueren (por ejemplo, cachés con expiración de minutos). Provocan Gen 2 frecuentes.
+
+      Montones especiales:
+
+      - **LOH (Large Object Heap)**: objetos de **≥ 85.000 bytes**. Se recolecta junto con Gen 2 y por defecto **no se compacta** → fragmentación. Usa `ArrayPool<T>` para buffers grandes.
+      - **POH (Pinned Object Heap, .NET 5+)**: para objetos que deben estar fijados (pinned) mucho tiempo sin fragmentar el heap normal (`GC.AllocateArray<T>(n, pinned: true)`).
+
+  - id: s2
+    title: "Modos del GC y diagnóstico"
+    body: |
+      - **Workstation GC**: un heap, pensado para apps de escritorio/cliente.
+      - **Server GC**: un heap y un hilo de GC **por núcleo lógico**; mayor throughput, más memoria. Es el predeterminado en ASP.NET Core.
+      - **Background (concurrent) GC**: las colecciones de Gen 2 corren mayormente en paralelo con la app.
+      - **DATAS** (*Dynamic Adaptation To Application Sizes*, .NET 8+, por defecto con Server GC desde .NET 9): ajusta dinámicamente el número de heaps según la carga, útil en contenedores.
+
+      Herramientas de diagnóstico:
+
+      ```bash
+      dotnet-counters monitor -p <pid> --counters System.Runtime
+      dotnet-gcdump collect -p <pid>
+      dotnet-trace collect -p <pid> --profile gc-verbose
+      ```
+
+      `GC.Collect()` casi nunca es correcto en producción: rompe la heurística del GC y promueve objetos vivos a generaciones superiores.
+
+  - id: s3
+    title: "IDisposable y el patrón Dispose"
+    body: |
+      El GC libera **memoria administrada**, no recursos externos (handles de archivo, sockets, conexiones). Para eso existe `IDisposable`.
+
+      ```csharp
+      public sealed class FileLogger : IDisposable
+      {
+          private readonly StreamWriter _writer;
+          private bool _disposed;
+
+          public FileLogger(string path) => _writer = new StreamWriter(path);
+
+          public void Log(string msg)
+          {
+              ObjectDisposedException.ThrowIf(_disposed, this);
+              _writer.WriteLine(msg);
+          }
+
+          public void Dispose()
+          {
+              if (_disposed) return;
+              _writer.Dispose();
+              _disposed = true;
+          }
+      }
+      ```
+
+      Reglas:
+
+      - `Dispose` debe ser **idempotente** (llamarlo varias veces es seguro).
+      - Si la clase **no es sealed** y puede tener recursos no administrados, usa el patrón completo `protected virtual void Dispose(bool disposing)` + `GC.SuppressFinalize(this)`.
+      - `using var x = ...;` libera al final del ámbito, en **orden inverso** de declaración.
+      - Para limpieza asíncrona (flush a red, `DbConnection`), implementa `IAsyncDisposable` y usa `await using`.
+
+  - id: s4
+    title: "Finalizadores y SafeHandle"
+    body: |
+      Un **finalizador** (`~MiClase()`) lo ejecuta el *finalizer thread* después de que el GC detecta que el objeto es inalcanzable. Costes:
+
+      - El objeto sobrevive **al menos una colección extra** (se promueve) porque debe quedar vivo hasta que corra el finalizador.
+      - No hay garantía de orden ni de momento; no se garantiza su ejecución al cerrar el proceso en .NET Core+.
+      - Una excepción no controlada en un finalizador termina el proceso.
+
+      En código moderno **casi nunca escribes finalizadores**: envuelve los handles nativos en una subclase de `SafeHandle`, que ya implementa finalización crítica y conteo de referencias para evitar ataques de reciclaje de handles.
+
+      ```csharp
+      sealed class MyHandle : SafeHandleZeroOrMinusOneIsInvalid
+      {
+          public MyHandle() : base(ownsHandle: true) { }
+          protected override bool ReleaseHandle() => NativeMethods.CloseThing(handle);
+      }
+      ```
+
+cards:
+  - id: c1
+    front: "¿A partir de qué tamaño un objeto va al LOH?"
+    back: "**85.000 bytes** o más. Se recolecta con Gen 2 y no se compacta por defecto, por eso conviene reutilizar buffers grandes con `ArrayPool<T>`."
+  - id: c2
+    front: "¿Qué es la 'crisis de la mediana edad' en el GC?"
+    back: "Objetos que viven lo suficiente para promoverse a Gen 2 pero mueren poco después. Fuerzan colecciones de Gen 2, que son las más caras."
+  - id: c3
+    front: "Diferencias clave entre Workstation y Server GC."
+    back: "Workstation: un heap, menor memoria, ideal para clientes. Server: un heap y un hilo de GC por núcleo, mayor throughput y uso de memoria; predeterminado en ASP.NET Core."
+  - id: c4
+    front: "¿Por qué un objeto con finalizador es más caro?"
+    back: "Se registra en la cola de finalización, sobrevive al menos una colección adicional (se promueve de generación) y su limpieza depende de un único hilo finalizador."
+  - id: c5
+    front: "¿Qué hace `GC.SuppressFinalize(this)` y cuándo se llama?"
+    back: "Quita el objeto de la cola de finalización. Se llama en `Dispose()` porque los recursos ya se liberaron y no hace falta el finalizador."
+  - id: c6
+    front: "¿En qué orden se liberan `using var a = ...; using var b = ...;`?"
+    back: "En orden inverso: primero `b`, luego `a` (como una pila)."
+  - id: c7
+    front: "¿Por qué preferir SafeHandle a un finalizador propio?"
+    back: "Ofrece finalización crítica, conteo de referencias que evita el reciclaje de handles durante llamadas P/Invoke, y separa la responsabilidad del handle de la lógica de la clase."
+  - id: c8
+    front: "¿Qué es el POH?"
+    back: "Pinned Object Heap (.NET 5+): heap para objetos que deben permanecer fijados en memoria, sin fragmentar Gen 0/1/2. Se usa con `GC.AllocateArray<T>(n, pinned: true)`."
+
+questions:
+  - id: q1
+    type: mcq
+    tag: "¿Qué imprime?"
+    prompt: "Dado `class D(string n) : IDisposable { public void Dispose() => Console.Write(n); }`, ¿qué imprime?"
+    code: |
+      void Run()
+      {
+          using var a = new D("a");
+          using var b = new D("b");
+          Console.Write("x");
+      }
+      Run();
+    options: ["xab", "xba", "abx", "bax"]
+    answer: 1
+    explanation: "Primero se ejecuta el cuerpo (x). Al salir del ámbito, las declaraciones `using` se liberan en orden inverso: b y después a."
+  - id: q2
+    type: tf
+    prompt: "Llamar a `GC.Collect()` periódicamente es una buena práctica para reducir el uso de memoria en un servicio web."
+    answer: false
+    explanation: "Interfiere con la heurística del GC, promueve objetos vivos a generaciones superiores y añade pausas. Solo tiene sentido en escenarios muy específicos y medidos."
+  - id: q3
+    type: mcq
+    prompt: "Un servicio asigna con frecuencia `byte[]` de 1 MB para procesar peticiones. ¿Cuál es la mejor mejora?"
+    options:
+      - "Llamar a GC.Collect() tras cada petición"
+      - "Usar ArrayPool<byte>.Shared.Rent/Return"
+      - "Convertir el array en un struct"
+      - "Añadir un finalizador que ponga el array a null"
+    answer: 1
+    explanation: "Arrays de 1 MB van al LOH, que no se compacta por defecto. Reutilizarlos con ArrayPool elimina las asignaciones y la fragmentación."
+  - id: q4
+    type: fill
+    prompt: "Completa: para liberar recursos de forma asíncrona se implementa la interfaz `______` y se consume con `await using`."
+    answer: ["IAsyncDisposable"]
+    explanation: "IAsyncDisposable expone `ValueTask DisposeAsync()`."
+  - id: q5
+    type: mcq
+    prompt: "¿Cuál es el GC predeterminado en una aplicación ASP.NET Core?"
+    options: ["Workstation no concurrente", "Workstation concurrente", "Server GC", "No tiene GC"]
+    answer: 2
+    explanation: "ASP.NET Core usa Server GC por defecto (configurable con `<ServerGarbageCollection>`)."
+  - id: q6
+    type: tf
+    prompt: "En .NET (Core/5+) se garantiza que todos los finalizadores pendientes se ejecutan al terminar el proceso."
+    answer: false
+    explanation: "A diferencia de .NET Framework, .NET moderno no ejecuta finalizadores al salir del proceso. Por eso la limpieza importante debe hacerse con Dispose."
+  - id: q7
+    type: mcq
+    prompt: "¿Qué propiedad debe cumplir siempre un método `Dispose()`?"
+    options: ["Debe lanzar si se llama dos veces", "Debe ser idempotente", "Debe llamar a GC.Collect()", "Debe ser virtual"]
+    answer: 1
+    explanation: "Llamar a Dispose varias veces no debe fallar ni liberar recursos dos veces."
+  - id: q8
+    type: mcq
+    prompt: "¿Qué constituye una 'raíz' del GC?"
+    options:
+      - "Cualquier objeto en Gen 2"
+      - "Campos estáticos, variables locales vivas y GC handles"
+      - "Solo los objetos con finalizador"
+      - "Los objetos del LOH"
+    answer: 1
+    explanation: "El GC marca todo lo alcanzable desde las raíces: estáticos, locales/registros activos de los hilos, handles (incluidos los pinned) y la cola de finalización."

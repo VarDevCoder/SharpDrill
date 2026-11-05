@@ -1,0 +1,182 @@
+id: ch09
+number: 9
+title: "Alto rendimiento: Span, memoria y medición"
+level: "Senior"
+summary: "Span<T>, Memory<T>, ref struct, stackalloc, ArrayPool, strings sin asignaciones, devirtualización y BenchmarkDotNet."
+objectives:
+  - "Reducir asignaciones en rutas calientes con Span<T> y pools."
+  - "Conocer las restricciones de ref struct y cuándo usar Memory<T>."
+  - "Medir correctamente antes de optimizar."
+
+sections:
+  - id: s1
+    title: "Span<T> y ReadOnlySpan<T>"
+    body: |
+      `Span<T>` es una **vista** tipada y segura sobre memoria contigua: un array, un `stackalloc`, memoria nativa o un trozo de string. No copia ni asigna.
+
+      ```csharp
+      ReadOnlySpan<char> linea = "2026-11-05;ORDEN;42".AsSpan();
+      int i = linea.IndexOf(';');
+      ReadOnlySpan<char> fecha = linea[..i];       // sin crear un string nuevo
+      int cantidad = int.Parse(linea[(linea.LastIndexOf(';') + 1)..]);
+      ```
+
+      Es un **ref struct**, lo que implica restricciones (garantizan que nunca apunte a memoria del stack ya liberada):
+
+      - No puede ser campo de una clase ni de un struct normal.
+      - No se puede hacer boxing ni asignar a `object` o interfaces.
+      - No puede capturarse en lambdas ni vivir **a través de un `await` o un `yield`**.
+
+      Para almacenar o cruzar `await`, usa **`Memory<T>` / `ReadOnlyMemory<T>`**, que viven en el heap y exponen `.Span` cuando necesitas procesar.
+
+  - id: s2
+    title: "stackalloc, ArrayPool y buffers"
+    body: |
+      `stackalloc` reserva en el stack, sin GC. Úsalo solo para tamaños **pequeños y acotados** (cientos de bytes, unos pocos KB), o te arriesgas a un `StackOverflowException` irrecuperable.
+
+      ```csharp
+      const int MaxStack = 256;
+      byte[]? rented = null;
+      Span<byte> buffer = len <= MaxStack
+          ? stackalloc byte[MaxStack]
+          : (rented = ArrayPool<byte>.Shared.Rent(len));
+      try
+      {
+          buffer = buffer[..len];
+          // ... usar buffer
+      }
+      finally
+      {
+          if (rented is not null) ArrayPool<byte>.Shared.Return(rented);
+      }
+      ```
+
+      Reglas de `ArrayPool<T>`:
+
+      - `Rent(n)` puede devolver un array **más grande** que n: usa siempre la longitud que pediste.
+      - El array puede contener datos antiguos; si son sensibles, `Return(arr, clearArray: true)`.
+      - No uses el array tras devolverlo y no lo devuelvas dos veces.
+
+  - id: s3
+    title: "Strings y formateo sin asignaciones"
+    body: |
+      Los strings son **inmutables**: concatenar en un bucle crea O(n²) bytes de basura. Opciones:
+
+      - `StringBuilder` para construir textos por partes (reutilízalo o usa `ObjectPool<StringBuilder>`).
+      - `string.Create(len, state, (span, st) => ...)` escribe directamente en el string final sin buffers intermedios.
+      - Interpolación moderna (C# 10+): `$"..."` usa `DefaultInterpolatedStringHandler`, que evita boxing y arrays `params`; y `TryFormat` sobre `Span<char>` para formatear sin asignar.
+      - `[GeneratedRegex]` y `SearchValues<T>` (.NET 8) para búsquedas rápidas.
+
+      ```csharp
+      Span<char> dest = stackalloc char[32];
+      if (precio.TryFormat(dest, out int written, "F2", CultureInfo.InvariantCulture))
+          writer.Write(dest[..written]);
+      ```
+
+      Compara strings con `StringComparison.Ordinal`/`OrdinalIgnoreCase` en lógica interna: es más rápido y evita sorpresas culturales (la famosa "I" turca).
+
+  - id: s4
+    title: "JIT, devirtualización y medición"
+    body: |
+      Ayudas al JIT:
+
+      - **`sealed`** permite devirtualizar llamadas virtuales/de interfaz y comprobar tipos más rápido. Sella las clases que no están diseñadas para herencia.
+      - **Dynamic PGO** (activo por defecto desde .NET 8) optimiza según el perfil real: devirtualiza de forma guardada los tipos más frecuentes.
+      - **Tiered compilation**: primero código rápido de compilar (Tier 0), luego optimizado (Tier 1) para métodos calientes. *ReadyToRun* y *Native AOT* reducen el arranque.
+      - Enumerar `List<T>` con `foreach` usa un **struct enumerator** (sin asignación); hacerlo a través de `IEnumerable<T>` lo boxea.
+
+      **Mide siempre con BenchmarkDotNet**, nunca con `Stopwatch` en un bucle (calentamiento, JIT por niveles, GC y ruido falsean el resultado):
+
+      ```csharp
+      [MemoryDiagnoser]
+      public class ParseBench
+      {
+          private readonly string _data = "2026-11-05;ORDEN;42";
+          [Benchmark(Baseline = true)] public int Split() => int.Parse(_data.Split(';')[2]);
+          [Benchmark] public int Span() => int.Parse(_data.AsSpan(_data.LastIndexOf(';') + 1));
+      }
+      // dotnet run -c Release
+      ```
+
+      `[MemoryDiagnoser]` muestra los bytes asignados por operación: en código de servidor, reducir asignaciones suele dar más que micro-optimizar CPU.
+
+cards:
+  - id: c1
+    front: "¿Qué es Span<T>?"
+    back: "Una vista tipada sobre memoria contigua (array, stack, nativa, string) sin copiar. Es un `ref struct` y permite slicing sin asignaciones."
+  - id: c2
+    front: "3 restricciones de un ref struct como Span<T>."
+    back: "No puede ser campo de una clase/struct normal, no admite boxing ni asignarse a object/interfaz, y no puede capturarse en lambdas ni cruzar un await/yield."
+  - id: c3
+    front: "¿Cuándo usar Memory<T> en lugar de Span<T>?"
+    back: "Cuando necesitas almacenarlo en un campo o usarlo a través de un `await`. Luego accedes a `.Span` para procesarlo de forma síncrona."
+  - id: c4
+    front: "Trampa de `ArrayPool<T>.Shared.Rent(100)`."
+    back: "Puede devolver un array de mayor longitud (p. ej. 128). Hay que trabajar con la longitud solicitada, no con `array.Length`."
+  - id: c5
+    front: "¿Por qué marcar clases como `sealed` mejora el rendimiento?"
+    back: "El JIT puede devirtualizar llamadas e inlinearlas, y las comprobaciones de tipo/casts son más baratas."
+  - id: c6
+    front: "¿Por qué `foreach` sobre `List<T>` no asigna, pero sí a través de `IEnumerable<T>`?"
+    back: "List<T> expone un enumerador `struct` que foreach usa directamente; a través de la interfaz el enumerador se boxea en el heap."
+  - id: c7
+    front: "¿Qué aporta `[MemoryDiagnoser]` en BenchmarkDotNet?"
+    back: "Mide bytes asignados por operación y colecciones de GC por cada mil operaciones."
+  - id: c8
+    front: "¿Por qué usar StringComparison.Ordinal en lógica interna?"
+    back: "Compara bytes/UTF-16 sin reglas culturales: más rápido y determinista (evita problemas como la i turca)."
+
+questions:
+  - id: q1
+    type: tf
+    prompt: "Se puede declarar un campo `private Span<byte> _buffer;` dentro de una clase."
+    answer: false
+    explanation: "Span<T> es ref struct: solo puede vivir en el stack, nunca como campo de una clase."
+  - id: q2
+    type: mcq
+    prompt: "Necesitas un buffer que se usa antes y después de un `await`. ¿Qué tipo eliges?"
+    options: ["Span<byte>", "Memory<byte>", "stackalloc byte[]", "ReadOnlySpan<byte>"]
+    answer: 1
+    explanation: "Memory<T> no es ref struct, así que puede cruzar un await. Usa .Span solo en las partes síncronas."
+  - id: q3
+    type: mcq
+    prompt: "¿Cuál es el riesgo de `stackalloc byte[len]` con `len` controlado por el usuario?"
+    options:
+      - "Fuga de memoria en el heap"
+      - "StackOverflowException, que no se puede capturar y termina el proceso"
+      - "Ninguno, el runtime lo mueve al heap automáticamente"
+      - "OutOfMemoryException capturable"
+    answer: 1
+    explanation: "El stack es pequeño (~1 MB por defecto). Limita el tamaño o recurre a ArrayPool para tamaños grandes."
+  - id: q4
+    type: fill
+    prompt: "Completa: la librería estándar para micro-benchmarks fiables en .NET es ______."
+    answer: ["BenchmarkDotNet", "Benchmark.NET", "benchmark dotnet"]
+    explanation: "BenchmarkDotNet gestiona calentamiento, iteraciones, estadísticas y diagnóstico de memoria."
+  - id: q5
+    type: mcq
+    prompt: "¿Qué alternativa evita crear el array de strings de `Split` al extraer el último campo de `\"a;b;42\"`?"
+    options:
+      - "line.Split(';').Last()"
+      - "line.AsSpan(line.LastIndexOf(';') + 1)"
+      - "Regex.Split(line, \";\")[2]"
+      - "line.Substring(0).Split(';')[2]"
+    answer: 1
+    explanation: "Un slice de ReadOnlySpan<char> apunta a los caracteres existentes; int.Parse acepta spans directamente."
+  - id: q6
+    type: tf
+    prompt: "Medir con un Stopwatch en un bucle de 10 iteraciones en modo Debug es una forma válida de comparar dos implementaciones."
+    answer: false
+    explanation: "Sin optimizaciones, sin calentamiento y con pocas iteraciones el resultado no es representativo. Usa BenchmarkDotNet en Release."
+  - id: q7
+    type: mcq
+    prompt: "¿Qué debes hacer al devolver un array con datos sensibles (tokens, contraseñas) a ArrayPool?"
+    options: ["Nada", "Return(arr, clearArray: true)", "Poner arr = null", "Llamar a GC.Collect()"]
+    answer: 1
+    explanation: "Sin limpiar, el siguiente que alquile el array podría leer los datos anteriores."
+  - id: q8
+    type: mcq
+    prompt: "¿Qué funcionalidad del JIT, activa por defecto desde .NET 8, optimiza usando datos del comportamiento real en ejecución?"
+    options: ["Native AOT", "Dynamic PGO", "ReadyToRun", "Interpretación"]
+    answer: 1
+    explanation: "Dynamic Profile-Guided Optimization instrumenta Tier 0 y recompila métodos calientes con información real (p. ej. devirtualización guardada)."

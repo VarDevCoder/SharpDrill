@@ -1,0 +1,192 @@
+id: ch04
+number: 4
+title: "Delegados, eventos y closures"
+level: "Senior"
+summary: "Cómo funcionan los delegados multicast, el patrón de eventos, las capturas de variables y sus fugas de memoria."
+objectives:
+  - "Predecir el resultado de lambdas que capturan variables."
+  - "Evitar fugas de memoria por suscripción a eventos."
+  - "Usar static lambdas y funciones locales para reducir asignaciones."
+
+sections:
+  - id: s1
+    title: "Delegados por dentro"
+    body: |
+      Un delegado es un **objeto** (clase derivada de `MulticastDelegate`) que guarda un puntero a método y, si es de instancia, la referencia al **target** (`this`).
+
+      ```csharp
+      Func<int, int> doble = x => x * 2;
+      Action<string> log = Console.WriteLine;
+      ```
+
+      Los delegados son **multicast**: `+=` crea un **nuevo** delegado con la lista de invocación combinada (son inmutables).
+
+      ```csharp
+      Func<int> f = () => 1;
+      f += () => 2;
+      Console.WriteLine(f()); // 2: solo se devuelve el resultado del último
+      ```
+
+      Con multicast, si uno lanza excepción, los siguientes no se ejecutan. Para control fino, itera `GetInvocationList()`.
+
+      Desde C# 9 existen **punteros a función** (`delegate*<int, int>`) para interop y código de muy alto rendimiento, sin asignación.
+
+  - id: s2
+    title: "Closures y captura de variables"
+    body: |
+      Una lambda que usa variables locales las **captura por referencia a la variable**, no por valor. El compilador genera una *display class* en el heap con esas variables como campos.
+
+      ```csharp
+      var acciones = new List<Action>();
+      for (int i = 0; i < 3; i++)
+          acciones.Add(() => Console.Write(i));
+      acciones.ForEach(a => a()); // 333
+      ```
+
+      En un `for` existe **una sola variable `i`** compartida por todas las lambdas. En `foreach` (desde C# 5) cada iteración tiene su propia variable, así que imprime `012`.
+
+      Coste: cada closure asigna la display class y el delegado. En código caliente:
+
+      - Usa `static` lambdas (C# 9) para que el compilador **prohíba capturas** accidentales: `list.Where(static x => x > 0)`.
+      - Pasa el estado explícitamente con sobrecargas que aceptan `TState` (`ConcurrentDictionary.GetOrAdd(key, static (k, arg) => ..., arg)`).
+      - Las **funciones locales** que no se convierten a delegado capturan en un struct en el stack, sin asignación.
+
+  - id: s3
+    title: "Eventos y el patrón estándar"
+    body: |
+      `event` es un delegado encapsulado: desde fuera solo se puede `+=` y `-=`; solo la clase propietaria puede invocarlo.
+
+      ```csharp
+      public sealed class Pedido
+      {
+          public event EventHandler<PedidoPagadoEventArgs>? Pagado;
+
+          public void Pagar()
+          {
+              // ...
+              Pagado?.Invoke(this, new PedidoPagadoEventArgs(Id));
+          }
+      }
+      ```
+
+      `Pagado?.Invoke(...)` es seguro ante hilos: lee el delegado una vez en una variable local temporal, evitando la carrera entre la comprobación de null y la invocación.
+
+  - id: s4
+    title: "Fugas de memoria por eventos"
+    body: |
+      Cuando un objeto se suscribe a un evento, **el publicador guarda una referencia al suscriptor** (el target del delegado). Si el publicador vive más (por ejemplo, un servicio singleton o un evento estático), el suscriptor nunca se recolecta.
+
+      ```csharp
+      public class Vista
+      {
+          public Vista(ServicioGlobal s) => s.Cambio += OnCambio; // fuga si nunca hay -=
+          void OnCambio(object? o, EventArgs e) { /* ... */ }
+      }
+      ```
+
+      Soluciones:
+
+      - Desuscribirse en `Dispose` (`s.Cambio -= OnCambio`).
+      - Patrones de *weak event* (WPF `WeakEventManager`) o `ConditionalWeakTable`.
+      - Preferir abstracciones con ciclo de vida explícito (`IObservable<T>` que devuelve un `IDisposable` al suscribirse, canales, mensajería).
+
+      Ojo: desuscribir una lambda anónima no funciona si no guardas la referencia; `-=` con una lambda nueva no coincide con la original.
+
+cards:
+  - id: c1
+    front: "¿Qué contiene internamente un delegado de instancia?"
+    back: "Un puntero al método y la referencia al objeto target (`this`). Por eso mantiene vivo al objeto suscrito."
+  - id: c2
+    front: "¿Qué devuelve un delegado multicast `Func<int>` al invocarlo?"
+    back: "Ejecuta todos los métodos en orden pero solo devuelve el valor del **último**."
+  - id: c3
+    front: "¿Por qué `for` + lambda imprime el mismo número en todas las iteraciones?"
+    back: "Porque hay **una única variable** del bucle `for` y todas las lambdas capturan esa misma variable (no su valor en ese momento)."
+  - id: c4
+    front: "¿Qué hace la palabra clave `static` en una lambda?"
+    back: "Impide que capture variables locales o `this`; evita asignaciones de closure y errores accidentales."
+  - id: c5
+    front: "¿Por qué `Evento?.Invoke(...)` es thread-safe frente a `if (Evento != null) Evento(...)`?"
+    back: "El operador `?.` lee el campo una sola vez a una variable temporal; en la versión con if otro hilo podría desuscribirse entre la comprobación y la llamada."
+  - id: c6
+    front: "¿Cuál es la causa típica de fuga de memoria con eventos?"
+    back: "Un publicador de larga vida (singleton/estático) mantiene referencias a suscriptores de corta vida que nunca hacen `-=`."
+  - id: c7
+    front: "¿Por qué `evento -= (s, e) => Foo();` no desuscribe nada?"
+    back: "Se crea un **nuevo** delegado que no es igual al registrado. Hay que guardar la referencia al delegado o usar un método con nombre."
+  - id: c8
+    front: "Ventaja de una función local frente a una lambda que captura variables."
+    back: "Si no se convierte a delegado, el compilador pasa las capturas en un struct por referencia: sin asignaciones en el heap."
+
+questions:
+  - id: q1
+    type: mcq
+    tag: "¿Qué imprime?"
+    prompt: "¿Qué imprime?"
+    code: |
+      var actions = new List<Action>();
+      for (int i = 0; i < 3; i++)
+          actions.Add(() => Console.Write(i));
+      foreach (var a in actions) a();
+    options: ["012", "333", "222", "000"]
+    answer: 1
+    explanation: "Todas las lambdas capturan la misma variable i, que vale 3 al terminar el bucle."
+  - id: q2
+    type: mcq
+    tag: "¿Qué imprime?"
+    prompt: "¿Qué imprime?"
+    code: |
+      var actions = new List<Action>();
+      foreach (var i in new[] { 0, 1, 2 })
+          actions.Add(() => Console.Write(i));
+      foreach (var a in actions) a();
+    options: ["012", "222", "333", "000"]
+    answer: 0
+    explanation: "Desde C# 5, foreach declara una variable nueva por iteración, así que cada lambda captura un valor distinto."
+  - id: q3
+    type: mcq
+    tag: "¿Qué imprime?"
+    prompt: "¿Qué imprime?"
+    code: |
+      Func<int> f = () => 1;
+      f += () => 2;
+      f += () => 3;
+      Console.WriteLine(f());
+    options: ["1", "6", "3", "Excepción: multicast con retorno"]
+    answer: 2
+    explanation: "Se ejecutan los tres, pero el valor devuelto es el del último delegado de la lista de invocación."
+  - id: q4
+    type: tf
+    prompt: "Si un suscriptor nunca se desuscribe de un evento de un objeto singleton, el GC no puede recolectar al suscriptor."
+    answer: true
+    explanation: "El delegado almacenado en el singleton mantiene una referencia fuerte al target (el suscriptor)."
+  - id: q5
+    type: fill
+    prompt: "Completa: para que el compilador impida que una lambda capture variables se le antepone la palabra clave `______`."
+    answer: ["static"]
+    explanation: "Las static lambdas (C# 9) no pueden capturar locales ni this."
+  - id: q6
+    type: mcq
+    prompt: "¿Qué hace `delegado1 += delegado2`?"
+    options:
+      - "Modifica delegado1 añadiéndole delegado2"
+      - "Crea un nuevo delegado combinado y lo asigna a delegado1"
+      - "Lanza si delegado1 es null"
+      - "Sustituye delegado1 por delegado2"
+    answer: 1
+    explanation: "Los delegados son inmutables: Delegate.Combine crea uno nuevo. Si delegado1 es null, el resultado es simplemente delegado2."
+  - id: q7
+    type: mcq
+    prompt: "¿Qué mejor evita la asignación de un closure en `cache.GetOrAdd(key, k => Create(k, config))`?"
+    options:
+      - "Convertir config en variable estática mutable"
+      - "Usar la sobrecarga GetOrAdd(key, static (k, cfg) => Create(k, cfg), config)"
+      - "Usar dynamic"
+      - "Envolver en Task.Run"
+    answer: 1
+    explanation: "La sobrecarga con factoryArgument permite pasar el estado sin capturarlo, y static garantiza que no haya capturas."
+  - id: q8
+    type: tf
+    prompt: "Si un manejador de un delegado multicast lanza una excepción, los manejadores restantes se siguen ejecutando."
+    answer: false
+    explanation: "La excepción interrumpe la invocación. Para aislarlos hay que iterar GetInvocationList() con try/catch por manejador."
