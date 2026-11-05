@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validar contenido del curso
+        run: npm run validate
+      - name: Tests unitarios e integración
+        run: npm test
+      - name: Typecheck del frontend
+        run: npm run typecheck
+      - name: Build del frontend
+        run: npm run build
+      - name: Tests de API con Newman (colección Postman)
+        run: |
+          PORT=3000 DB_FILE=/tmp/ci.db npm start &
+          curl -fsS --retry 15 --retry-connrefused --retry-delay 1 http://localhost:3000/api/health
+          npx newman run postman/SharpDrill.postman_collection.json \
+            -e postman/local.postman_environment.json \
+            --reporters cli,junit --reporter-junit-export newman-results.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: newman-results
+          path: newman-results.xml
