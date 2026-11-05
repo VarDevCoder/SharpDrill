@@ -22,7 +22,7 @@ test('El repositorio Oracle implementa el mismo contrato que el de SQLite', asyn
   const original = oracledb.createPool;
   oracledb.createPool = async () => pool;
   try {
-    const ora = await createOracleRepo({ user: 'u', password: 'p', connectString: 'x' });
+    const ora = await createOracleRepo({ user: 'u', password: 'p', connectString: 'x', autoMigrate: false });
     const lite = createSqliteRepo(':memory:');
     const methods = (o) => Object.keys(o).filter((k) => typeof o[k] === 'function').sort();
     assert.deepEqual(methods(ora), methods(lite));
@@ -37,7 +37,7 @@ test('recordReview delega en sd_api.record_review con binds OUT y mapea el resul
   const original = oracledb.createPool;
   oracledb.createPool = async () => pool;
   try {
-    const ora = await createOracleRepo({ user: 'u', password: 'p', connectString: 'x' });
+    const ora = await createOracleRepo({ user: 'u', password: 'p', connectString: 'x', autoMigrate: false });
     const next = await ora.recordReview({ userId: 1, itemId: 'ch14.q1', chapterId: 'ch14', grade: 2, mode: 'practice', correct: true });
     assert.deepEqual(next, { ease: 2.5, interval: 1, reps: 1, lapses: 0, dueAt: '2026-01-02T00:00:00.000Z', grade: 2 });
     const call = calls.find((c) => c.sql.includes('sd_api.record_review'));
@@ -58,7 +58,7 @@ test('Errores ORA-20001 de PL/SQL se traducen a HTTP 409', async () => {
   const original = oracledb.createPool;
   oracledb.createPool = async () => pool;
   try {
-    const ora = await createOracleRepo({ user: 'u', password: 'p', connectString: 'x' });
+    const ora = await createOracleRepo({ user: 'u', password: 'p', connectString: 'x', autoMigrate: false });
     await assert.rejects(ora.createUser({ email: 'a@b.c', name: 'A', passwordHash: 'h' }), (e) => e.status === 409);
   } finally {
     oracledb.createPool = original;

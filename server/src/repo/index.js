@@ -10,7 +10,9 @@ export async function createRepo(env = process.env) {
       user: env.ORACLE_USER,
       password: env.ORACLE_PASSWORD,
       connectString: env.ORACLE_CONNECT_STRING ?? 'localhost:1521/FREEPDB1',
-      poolMax: Number(env.ORACLE_POOL_MAX ?? 10),
+      poolMin: Number(env.ORACLE_POOL_MIN ?? 0),
+      poolMax: Number(env.ORACLE_POOL_MAX ?? (env.VERCEL ? 4 : 10)),
+      autoMigrate: env.ORACLE_AUTO_MIGRATE !== '0',
     });
   }
   const { createSqliteRepo } = await import('./sqlite.js');

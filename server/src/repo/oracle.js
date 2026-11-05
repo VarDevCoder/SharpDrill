@@ -1,4 +1,5 @@
 import oracledb from 'oracledb';
+import { migrateIfNeeded } from './oracle-migrate.js';
 
 /**
  * Repositorio Oracle (node-oracledb en modo thin: sin Instant Client).
@@ -6,13 +7,14 @@ import oracledb from 'oracledb';
  * - Lecturas con SQL parametrizado (bind variables → sin inyección y con cursores compartidos).
  * - Fechas intercambiadas como ISO-8601 UTC (sd_api.iso / sd_api.to_ts) para no depender de zonas horarias.
  */
-export async function createOracleRepo({ user, password, connectString, poolMax = 10 }) {
+export async function createOracleRepo({ user, password, connectString, poolMin = 0, poolMax = 10, autoMigrate = true }) {
   if (!user || !password) throw new Error('ORACLE_USER y ORACLE_PASSWORD son obligatorios con DB_CLIENT=oracle');
   oracledb.outFormat = oracledb.OUT_FORMAT_OBJECT;
   oracledb.fetchAsString = [oracledb.CLOB];
   oracledb.autoCommit = true;
 
-  const pool = await oracledb.createPool({ user, password, connectString, poolMin: 1, poolMax, poolIncrement: 1 });
+  // poolMin 0: en serverless (Vercel) no se mantienen conexiones ociosas entre invocaciones
+  const pool = await oracledb.createPool({ user, password, connectString, poolMin, poolMax, poolIncrement: 1, poolTimeout: 60 });
 
   async function withConn(fn) {
     const conn = await pool.getConnection();
@@ -53,6 +55,8 @@ export async function createOracleRepo({ user, password, connectString, poolMax 
     return e;
   };
   const guard = async (p) => { try { return await p; } catch (e) { throw mapError(e); } };
+
+  if (autoMigrate) await withConn((c) => migrateIfNeeded(c));
 
   return {
     kind: 'oracle',

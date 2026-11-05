@@ -89,6 +89,30 @@ DB_CLIENT=oracle ORACLE_USER=sharpdrill ORACLE_PASSWORD=... ORACLE_CONNECT_STRIN
 
 Variables de entorno: `PORT`, `DB_CLIENT` (`sqlite` | `oracle`), `DB_FILE`, `ORACLE_USER`, `ORACLE_PASSWORD`, `ORACLE_CONNECT_STRING`, `ORACLE_POOL_MAX`, `DRILL_SECRET` (clave HMAC de los tickets de drill, obligatoria con varias réplicas) y `SECURE_COOKIES=1` (detrás de HTTPS).
 
+## Despliegue en Vercel (+ Oracle Autonomous Database)
+
+`vercel.json` ya configura todo: build con `npm run build`, salida en `web/dist` y la API Express como función serverless (`api/index.js`) con reescrituras para `/api/*` y para las rutas del SPA.
+
+Vercel **no tiene disco persistente**: cada instancia de la función tendría su propia SQLite y se borraría al reciclarse. Por eso, en Vercel la app exige Oracle. Sin Oracle, el frontend carga, pero la API responde 503 y el login muestra el aviso "Base de datos no configurada".
+
+1. **Crea una Autonomous Database gratuita** (Oracle Cloud *Always Free*, tipo *Transaction Processing*).
+2. En la base de datos, **Network → Access control list**: permite `0.0.0.0/0` (las IP de Vercel son dinámicas) y marca *Mutual TLS (mTLS) authentication: Not required*. Así no necesitas wallet.
+3. **Database Actions → SQL** (como ADMIN): ejecuta `db/oracle/00_create_user.sql`, cambiando antes la contraseña.
+4. **Database connection → TLS** → copia la cadena de conexión `…_low` (empieza por `(description=…` ).
+5. En Vercel → *Settings → Environment Variables*:
+
+   | Variable | Valor |
+   |---|---|
+   | `DB_CLIENT` | `oracle` |
+   | `ORACLE_USER` | `sharpdrill` |
+   | `ORACLE_PASSWORD` | la contraseña del paso 3 |
+   | `ORACLE_CONNECT_STRING` | la cadena TLS del paso 4 |
+   | `DRILL_SECRET` | una cadena aleatoria larga (`openssl rand -hex 32`); obligatoria con varias instancias |
+
+6. **Redeploy**. En la primera petición, la API crea sola las tablas y los paquetes PL/SQL (`server/src/repo/oracle-migrate.js`) y comprueba `USER_ERRORS`. Si algo no compila, el error aparece en *Vercel → Logs* con el paquete y la línea.
+
+Comprobación: `curl https://<tu-app>.vercel.app/api/health` debe devolver `"db":"oracle"`.
+
 ## Practicar curl y Postman con la propia API
 
 En **Ajustes → Tokens de API** puedes crear un token Bearer personal. También puedes hacerlo por terminal:

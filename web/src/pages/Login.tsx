@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
@@ -11,6 +11,12 @@ export function LoginPage() {
   const { setUser } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
+  const [dbMissing, setDbMissing] = useState(false);
+
+  // En Vercel sin base de datos configurada, /api/health responde configured: false
+  useEffect(() => {
+    fetch('/api/health').then((r) => r.json()).then((h) => setDbMissing(h.configured === false)).catch(() => undefined);
+  }, []);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value });
 
@@ -42,6 +48,13 @@ export function LoginPage() {
         </ul>
       </div>
       <form className="card auth-form" onSubmit={onSubmit}>
+        {dbMissing && (
+          <div className="feedback ko" role="alert">
+            <strong>Base de datos no configurada</strong>
+            <p className="small">Este despliegue aún no tiene Oracle conectado. Define <code>DB_CLIENT=oracle</code>, <code>ORACLE_USER</code>,
+              <code>ORACLE_PASSWORD</code> y <code>ORACLE_CONNECT_STRING</code> en Vercel y vuelve a desplegar.</p>
+          </div>
+        )}
         <div className="tabs small" role="tablist">
           <button type="button" role="tab" aria-selected={mode === 'login'} className={`tab ${mode === 'login' ? 'active' : ''}`} onClick={() => setMode('login')}>Entrar</button>
           <button type="button" role="tab" aria-selected={mode === 'register'} className={`tab ${mode === 'register' ? 'active' : ''}`} onClick={() => setMode('register')}>Crear cuenta</button>

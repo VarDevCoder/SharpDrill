@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { requireUser } from '../auth.js';
 import { gradeDrill } from '../content.js';
 import { httpError } from '../errors.js';
@@ -10,7 +10,17 @@ import { chapterFilter, clampInt, shuffle } from './review.js';
  * El cronómetro lo controla el servidor: /start devuelve un ticket firmado con HMAC
  * que contiene la hora de inicio; al entregar, el tiempo se calcula en el servidor.
  */
-export function createTicketSigner(secret = process.env.DRILL_SECRET ?? randomBytes(32).toString('hex')) {
+/**
+ * Clave HMAC: DRILL_SECRET si existe; si no, una derivada de ORACLE_PASSWORD (estable entre instancias
+ * serverless); y en local, aleatoria por proceso.
+ */
+export function defaultDrillSecret(env = process.env) {
+  if (env.DRILL_SECRET) return env.DRILL_SECRET;
+  if (env.ORACLE_PASSWORD) return createHash('sha256').update(`sharpdrill-drill:${env.ORACLE_PASSWORD}`).digest('hex');
+  return randomBytes(32).toString('hex');
+}
+
+export function createTicketSigner(secret = defaultDrillSecret()) {
   const sign = (payload) => createHmac('sha256', secret).update(payload).digest('base64url');
   return {
     issue(userId, itemId, startedAt = Date.now()) {
