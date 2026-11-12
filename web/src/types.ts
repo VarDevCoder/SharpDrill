@@ -1,7 +1,7 @@
 // Contratos de la API de SharpDrill (deben coincidir con server/src/routes).
 
 export type Lang = 'csharp' | 'plsql' | 'sql' | 'tsx' | 'ts' | 'js' | 'bash' | 'json' | 'xml' | 'http' | 'dockerfile' | 'text';
-export type TrackId = 'csharp' | 'db' | 'react' | 'api' | 'english';
+export type TrackId = 'csharp-basics' | 'csharp' | 'db' | 'react' | 'api' | 'english';
 
 export interface User { id: number; email: string; name: string; dailyGoal: number }
 export interface Track { id: TrackId; title: string; order: number }

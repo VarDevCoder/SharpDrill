@@ -40,8 +40,9 @@ export function LoginPage() {
       <div className="auth-brand">
         <div className="logo big" aria-hidden="true">SD</div>
         <h1>SharpDrill</h1>
-        <p>Entrenamiento senior con <strong>repaso activo</strong> y <strong>drills de código cronometrados</strong>.</p>
+        <p>Aprende <strong>C# desde cero</strong> o profundiza con <strong>repaso activo y desafíos avanzados</strong>.</p>
         <ul className="features">
+          <li><strong>Desde cero</strong>: primeros programas, práctica sin cronómetro y un inventario por consola</li>
           <li><strong>C# y .NET</strong>: CLR, GC, async, concurrencia, rendimiento, EF Core</li>
           <li><strong>Oracle</strong>: SQL avanzado y PL/SQL bajo reloj</li>
           <li><strong>React + TypeScript</strong> y <strong>Next.js</strong></li>

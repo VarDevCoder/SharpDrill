@@ -1,19 +1,20 @@
+import { Icon, type IconName } from './Icon';
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { useTheme } from './ui';
 
-const NAV = [
-  { to: '/', label: 'Inicio', icon: '⌂', end: true },
-  { to: '/temario', label: 'Temario', icon: '▤' },
-  { to: '/repaso', label: 'Repaso', icon: '↻' },
-  { to: '/drills', label: 'Drills de código', icon: '⏱' },
-  { to: '/practica', label: 'Práctica', icon: '◎' },
-  { to: '/examen', label: 'Examen', icon: '✎' },
-  { to: '/snippets', label: 'Snippets y atajos', icon: '⌘' },
-  { to: '/progreso', label: 'Progreso', icon: '▲' },
-  { to: '/mis-tarjetas', label: 'Mis tarjetas', icon: '▢' },
-  { to: '/ajustes', label: 'Ajustes', icon: '⚙' },
+const NAV: { to: string; label: string; icon: IconName; end?: boolean }[] = [
+  { to: '/', label: 'Inicio', icon: 'home', end: true },
+  { to: '/temario', label: 'Temario', icon: 'book' },
+  { to: '/repaso', label: 'Repaso', icon: 'repeat' },
+  { to: '/drills', label: 'Drills de código', icon: 'timer' },
+  { to: '/practica', label: 'Práctica', icon: 'target' },
+  { to: '/examen', label: 'Examen', icon: 'exam' },
+  { to: '/snippets', label: 'Snippets y atajos', icon: 'code' },
+  { to: '/progreso', label: 'Progreso', icon: 'chart' },
+  { to: '/mis-tarjetas', label: 'Mis tarjetas', icon: 'cards' },
+  { to: '/ajustes', label: 'Ajustes', icon: 'settings' },
 ];
 
 export function Layout() {
@@ -44,7 +45,7 @@ export function Layout() {
         <NavLink className="brand" to="/"><span className="logo" aria-hidden="true">SD</span><span>SharpDrill</span></NavLink>
         <nav className="nav">
           {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.end}><span className="ni" aria-hidden="true">{n.icon}</span> {n.label}</NavLink>
+            <NavLink key={n.to} to={n.to} end={n.end}><Icon className="ni" name={n.icon} /> {n.label}</NavLink>
           ))}
         </nav>
         <div className="sidebar-foot small muted">{user?.name}</div>
@@ -52,12 +53,12 @@ export function Layout() {
       <div className="scrim" aria-hidden="true" onClick={() => setMenu(false)} />
       <div className="shell">
         <header className="topbar">
-          <button className="icon-btn only-mobile" type="button" aria-label="Abrir menú" onClick={() => setMenu((m) => !m)}>☰</button>
+          <button className="icon-btn only-mobile" type="button" aria-label="Abrir menú" onClick={() => setMenu((m) => !m)}><Icon name="menu" /></button>
           <form className="top-search" role="search" onSubmit={(e) => { e.preventDefault(); navigate(`/buscar?q=${encodeURIComponent(q)}`); }}>
             <input id="top-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar teoría, snippets, atajos…  ( / )" aria-label="Buscar" />
           </form>
           <button className="icon-btn" type="button" onClick={toggle} aria-label={`Cambiar a tema ${theme === 'dark' ? 'claro' : 'oscuro'}`}>
-            {theme === 'dark' ? '☀' : '☾'}
+            <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
           </button>
         </header>
         <main id="main"><Outlet /></main>

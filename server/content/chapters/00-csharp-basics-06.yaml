@@ -1,0 +1,199 @@
+id: cs-start-06
+number: 6
+title: "Proyecto: tu primer inventario"
+level: "Inicial"
+track: csharp-basics
+summary: "Construye un inventario por consola que liste productos, registre ventas y evite cantidades inválidas."
+objectives:
+  - "Combinar variables, condiciones, bucles, listas y objetos en un programa."
+  - "Listar productos y vender unidades sin dejar stock negativo."
+  - "Comprobar casos normales y errores con una lista de pruebas manuales."
+sections:
+  - id: s1
+    title: "Define qué debe hacer el programa"
+    body: |
+      Vas a construir un inventario pequeño para una ferretería. El objetivo es entender el programa y poder modificarlo. No necesita interfaz gráfica, base de datos ni conexión a internet para ejecutarse una vez preparado el proyecto.
+
+      Debe mostrar un menú con tres opciones: **1 Listar**, **2 Vender** y **0 Salir**. Cada producto tendrá nombre, precio y stock. Una venta solo se acepta si el producto existe, la cantidad es positiva y alcanza el stock. Después de vender se muestra el total y se puede consultar el nuevo stock.
+
+      Crea un proyecto independiente para no perder tus ejercicios anteriores. En la terminal, desde la carpeta donde guardas tus proyectos:
+
+      ```bash
+      dotnet new console -n InventarioInicial
+      cd InventarioInicial
+      ```
+
+      Usa como datos iniciales Martillo a 25000m con stock 10 y Clavo a 500m con stock 100. **Los datos de este programa viven en memoria:** al cerrarlo y abrirlo vuelven a esos valores. Eso es distinto del progreso de aprendizaje que SharpDrill guarda en tu cuenta.
+  - id: s2
+    title: "Constrúyelo en pasos pequeños"
+    body: |
+      Antes de mirar la solución, intenta estos pasos en Program.cs. Compila con `dotnet run` después de cada uno:
+
+      1. Declara al final del archivo la clase Producto con Nombre, Precio y Stock, como en el capítulo anterior.
+      2. Arriba de la clase, crea una List<Producto> y agrega los dos productos con Add y new.
+      3. Recorre la lista con foreach y muestra nombre, precio y stock de cada producto.
+      4. Envuelve el menú en un while. Lee la opción con ReadLine. Usa if para distinguir listar, vender y salir.
+      5. Para vender, pide el número de producto y la cantidad. Convierte con TryParse y valida los rangos antes de acceder a la lista.
+      6. Usa IntentarVender para descontar stock; muestra el total solo si la venta fue aceptada.
+
+      **Pistas:** la pantalla puede numerar los productos desde 1, pero la lista empieza en 0. Después de comprobar el rango, usa `numero - 1` como índice. `break` sale del bucle y `continue` salta a la siguiente vuelta. Si la entrada termina, ReadLine devuelve null: trata ese caso como salir para evitar un bucle que repita mensajes indefinidamente.
+
+      Si te trabas, implementa primero Listar y Salir. Luego añade la venta. Un programa pequeño que ya funciona es más fácil de ampliar que uno enorme que aún no compila.
+  - id: s3
+    title: "Solución de referencia completa"
+    body: |
+      Compara tu implementación con esta solución. Puedes reemplazar todo Program.cs por ella y ejecutar `dotnet run`. Después explica cada bloque con tus palabras; copiar y ejecutar por sí solo no demuestra que lo entendiste.
+
+      ```csharp
+      using System.Collections.Generic;
+
+      List<Producto> productos = new List<Producto>();
+      productos.Add(new Producto { Nombre = "Martillo", Precio = 25000m, Stock = 10 });
+      productos.Add(new Producto { Nombre = "Clavo", Precio = 500m, Stock = 100 });
+
+      void ListarProductos()
+      {
+          for (int i = 0; i < productos.Count; i++)
+          {
+              Producto producto = productos[i];
+              Console.WriteLine($"{i + 1}. {producto.Nombre} | Precio: {producto.Precio} | Stock: {producto.Stock}");
+          }
+      }
+
+      while (true)
+      {
+          Console.WriteLine("1 Listar | 2 Vender | 0 Salir");
+          string opcion = Console.ReadLine() ?? "0";
+          if (opcion == "0")
+          {
+              break;
+          }
+          if (opcion == "1")
+          {
+              ListarProductos();
+              continue;
+          }
+          if (opcion != "2")
+          {
+              Console.WriteLine("Opción inválida");
+              continue;
+          }
+
+          ListarProductos();
+          Console.WriteLine("Número de producto:");
+          string entradaProducto = Console.ReadLine() ?? "";
+          if (!int.TryParse(entradaProducto, out int numero) || numero < 1 || numero > productos.Count)
+          {
+              Console.WriteLine("Producto inválido");
+              continue;
+          }
+
+          Producto elegido = productos[numero - 1];
+          Console.WriteLine("Cantidad a vender:");
+          string entradaCantidad = Console.ReadLine() ?? "";
+          if (!int.TryParse(entradaCantidad, out int cantidad))
+          {
+              Console.WriteLine("Escribe una cantidad entera");
+              continue;
+          }
+          if (!elegido.IntentarVender(cantidad))
+          {
+              Console.WriteLine("La cantidad debe ser positiva y no superar el stock");
+              continue;
+          }
+
+          decimal total = elegido.Precio * cantidad;
+          Console.WriteLine($"Venta registrada. Total: {total}");
+      }
+      Console.WriteLine("Inventario cerrado");
+
+      class Producto
+      {
+          public string Nombre { get; set; } = "";
+          public decimal Precio { get; set; }
+          public int Stock { get; set; }
+
+          public bool IntentarVender(int cantidad)
+          {
+              if (cantidad <= 0 || cantidad > Stock)
+              {
+                  return false;
+              }
+              Stock = Stock - cantidad;
+              return true;
+          }
+      }
+      ```
+
+      La función local ListarProductos usa la lista declarada en el mismo contexto. La variable elegido apunta al objeto de la lista: al vender, su nuevo stock también se ve cuando vuelves a listar. El menú se repite hasta que break termina el while.
+  - id: s4
+    title: "Comprueba el resultado y decide qué sigue"
+    body: |
+      Ejecuta estas comprobaciones. Reinicia el programa antes de cada caso que necesite los valores iniciales. En las ventas, selecciona primero 2 en el menú.
+
+      | Caso | Entrada | Resultado esperado |
+      |---|---|---|
+      | Listado inicial | Opción 1 | Martillo con stock 10 y Clavo con stock 100 |
+      | Venta válida | Producto 1, cantidad 2 | Total 50000; al listar, Martillo tiene stock 8 |
+      | Vender todo | Producto 1, cantidad 10 | Total 250000 y stock 0 |
+      | Stock insuficiente | Producto 1, cantidad 11 | Mensaje de rechazo y stock 10 |
+      | Cero o negativo | Producto 1, cantidad 0 o -1 | Rechazo; el stock no cambia |
+      | Texto en cantidad | Producto 1, cantidad hola | Mensaje de cantidad entera; el programa continúa |
+      | Producto inexistente | Producto 0 o 3 | Mensaje Producto inválido; no accede a un índice inválido |
+      | Opción desconocida | Opción 9 | Mensaje Opción inválida y vuelve el menú |
+      | Salida | Opción 0 | Inventario cerrado y termina |
+
+      **Reto final:** agrega un tercer producto al inicio y vuelve a probar el listado y una venta. Luego crea una función que calcule el valor total del inventario sumando Precio * Stock de cada producto. Con los dos productos originales, el valor inicial debe ser 300000.
+
+      Has terminado esta introducción cuando puedes ejecutar el programa, explicar sus decisiones, modificar un producto y superar las comprobaciones. Las preguntas de SharpDrill evalúan conceptos; la ejecución y estas pruebas las haces en tu equipo.
+
+      **Siguiente etapa:** practica más con colecciones, archivos, pruebas y depuración; después sigue con SQL y APIs. El catálogo C# y .NET contiene profundización senior: puedes explorarlo, pero completar esta ruta inicial no significa dominar ya esos temas. Puedes volver aquí para repasar las bases cuando lo necesites.
+cards:
+  - id: c1
+    front: "¿Por qué la opción de producto 1 corresponde a productos[0]?"
+    back: "La pantalla numera desde 1 y la lista desde 0. Tras validar el rango, restamos uno."
+  - id: c2
+    front: "¿Cuándo se descuenta stock en el inventario?"
+    back: "Solo cuando la cantidad es positiva y no supera el stock. Las entradas inválidas no deben modificarlo."
+  - id: c3
+    front: "¿Qué diferencia hay entre break y continue en el menú?"
+    back: "break termina el bucle; continue pasa a su siguiente vuelta."
+  - id: c4
+    front: "¿Este inventario conserva sus ventas después de cerrar el programa?"
+    back: "No. Usa datos en memoria que se inicializan otra vez al arrancar. Guardarlos en archivo o base de datos sería otra etapa."
+  - id: c5
+    front: "¿Por qué probar cero, negativos, texto y stock insuficiente?"
+    back: "Porque el programa debe manejar entradas inválidas sin cerrar inesperadamente ni modificar datos incorrectamente."
+questions:
+  - id: q1
+    type: fill
+    prompt: "El usuario elige el producto 2. ¿Qué índice usas tras validar el rango?"
+    answer: "1"
+    explanation: "Se resta uno al número mostrado: 2 - 1 = 1."
+  - id: q2
+    type: fill
+    prompt: "Vendes 2 martillos a 25000 cada uno. ¿Cuál es el total? Escribe solo los dígitos."
+    answer: "50000"
+    explanation: "Precio por cantidad: 25000 * 2 = 50000."
+  - id: q3
+    type: mcq
+    prompt: "Una venta es rechazada por stock insuficiente. ¿Qué debe pasar con el stock?"
+    options: ["Queda negativo", "Pasa a cero", "Conserva su valor anterior"]
+    answer: 2
+    explanation: "Una operación rechazada no debe descontar unidades."
+  - id: q4
+    type: tf
+    prompt: "continue termina definitivamente el menú."
+    answer: false
+    explanation: "continue pasa a la siguiente vuelta. break termina el bucle."
+  - id: q5
+    type: tf
+    prompt: "El inventario de consola conserva automáticamente el stock al reiniciar porque SharpDrill guarda tu progreso."
+    answer: false
+    explanation: "Son sistemas distintos: SharpDrill persiste el aprendizaje, pero este programa usa una lista en memoria."
+  - id: q6
+    type: mcq
+    prompt: "¿Qué evidencia indica que terminaste el proyecto inicial?"
+    options: ["Copiaste todo el código", "Lo ejecutaste, explicaste su funcionamiento y probaste ventas válidas e inválidas", "Abriste el capítulo senior"]
+    answer: 1
+    explanation: "Debes comprobar el comportamiento y entenderlo, no solo copiar la solución."

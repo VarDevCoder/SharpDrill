@@ -1,9 +1,9 @@
+import { Icon, TRACK_ICON } from '../components/Icon';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAsync } from '../hooks';
 import { ErrorBox, Heatmap, Loading, ProgressBar } from '../components/ui';
 import { Inline } from '../components/Markdown';
-import { TRACK_ICON } from '../lib/format';
 
 const MODE_LABEL: Record<string, string> = { review: 'Repaso', study: 'Estudio', practice: 'Práctica', exam: 'Examen', drill: 'Drills de código' };
 
@@ -23,12 +23,12 @@ export function ProgressPage() {
         <div className="card stat"><span className="stat-n">{overall}%</span><span className="stat-l">dominio del curso</span></div>
         <div className="card stat"><span className="stat-n">{seen}/{total}</span><span className="stat-l">elementos vistos</span></div>
         <div className="card stat"><span className="stat-n">{s.totals.accuracy}%</span><span className="stat-l">precisión</span></div>
-        <div className="card stat"><span className="stat-n">🔥 {s.streak}</span><span className="stat-l">racha (días)</span></div>
+        <div className="card stat"><span className="stat-n"><Icon name="activity" className="metric-icon" /> {s.streak}</span><span className="stat-l">racha (días)</span></div>
       </section>
       <section className="tracks">
         {s.tracks.map((t) => (
           <div key={t.id} className={`card track track-${t.id}`}>
-            <span className="track-icon" aria-hidden="true">{TRACK_ICON[t.id]}</span>
+            <span className="track-icon" aria-hidden="true"><Icon name={TRACK_ICON[t.id] ?? 'book'} /></span>
             <div><strong>{t.title}</strong><ProgressBar value={t.mastery} label={t.title} /><span className="small muted">{t.mastery}%</span></div>
           </div>
         ))}

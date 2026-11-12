@@ -1,3 +1,4 @@
+import { Icon } from '../components/Icon';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
@@ -117,7 +118,7 @@ export function DrillRunner({ items, title = 'Drills de código', onRestart }: P
         <ProgressBar value={(i / items.length) * 100} label="Progreso" />
         {phase === 'running'
           ? <span className={`timer ${timeCls}`} aria-live="off">{formatMs(left)}</span>
-          : <span className="muted small">⏱ {formatMs(d.timeLimit * 1000)}</span>}
+          : <span className="muted small"><Icon name="timer" /> {formatMs(d.timeLimit * 1000)}</span>}
       </div>
 
       <article className="item drill" key={d.id}>
@@ -134,7 +135,7 @@ export function DrillRunner({ items, title = 'Drills de código', onRestart }: P
           <div className="drill-start">
             <p className="muted">Tienes <strong>{formatMs(d.timeLimit * 1000)}</strong>. El cronómetro empieza al pulsar el botón y la entrega es automática al llegar a 0.
               Entrega con <kbd>Ctrl</kbd>+<kbd>Enter</kbd>.</p>
-            <button className="btn wide" type="button" onClick={start} disabled={busy}>Empezar drill ⏱</button>
+            <button className="btn wide" type="button" onClick={start} disabled={busy}>Empezar drill <Icon name="timer" /></button>
           </div>
         )}
 
@@ -155,10 +156,10 @@ export function DrillRunner({ items, title = 'Drills de código', onRestart }: P
           <>
             <div className={`feedback ${result.correct ? 'ok' : 'ko'}`} role="status">
               <strong>
-                {result.passed === result.total ? (result.inTime ? '✓ Todas las verificaciones superadas' : '✓ Correcto, pero fuera de tiempo') : `✗ ${result.passed}/${result.total} verificaciones`}
+                <Icon name={result.passed === result.total ? 'check' : 'close'} /> {result.passed === result.total ? (result.inTime ? 'Todas las verificaciones superadas' : 'Correcto, pero fuera de tiempo') : `${result.passed}/${result.total} verificaciones`}
               </strong>
               <ul className="checks">
-                {result.results.map((c) => <li key={c.hint} className={c.ok ? 'ok' : 'ko'}><span aria-hidden="true">{c.ok ? '✓' : '✗'}</span> <Markdown className="inline-md" source={c.hint} /></li>)}
+                {result.results.map((c) => <li key={c.hint} className={c.ok ? 'ok' : 'ko'}><span><span className="sr-only">{c.ok ? 'Superada: ' : 'No superada: '}</span><Icon name={c.ok ? 'check' : 'close'} /></span> <Markdown className="inline-md" source={c.hint} /></li>)}
               </ul>
               <p className="small">Tiempo: <strong>{formatMs(result.elapsedMs)}</strong> de {formatMs(result.timeLimit * 1000)} ·
                 Calificación: <strong>{GRADE_LABEL[result.srsGrade]}</strong> · Próximo repaso en {formatInterval(result.next.interval)}</p>

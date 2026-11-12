@@ -47,7 +47,11 @@ export default function chapterRoutes({ repo, content, progress }) {
       repo.sectionsRead(req.user.id, ch.id),
       progress.chapterSummaries(req.user.id),
     ]);
-    const idx = content.chapters.indexOf(ch);
+    // La ruta inicial tiene su propia secuencia; al terminar no salta a contenido senior.
+    const sequence = ch.track === 'csharp-basics'
+      ? content.chapters.filter((c) => c.track === ch.track)
+      : content.chapters.filter((c) => c.track !== 'csharp-basics');
+    const idx = sequence.indexOf(ch);
     res.json({
       chapter: {
         ...summaries.find((c) => c.id === ch.id),
@@ -59,8 +63,8 @@ export default function chapterRoutes({ repo, content, progress }) {
         snippets: ch.snippets,
         shortcuts: ch.shortcuts,
         readSections: read.map((x) => x.sectionId),
-        prev: content.chapters[idx - 1]?.id ?? null,
-        next: content.chapters[idx + 1]?.id ?? null,
+        prev: sequence[idx - 1]?.id ?? null,
+        next: sequence[idx + 1]?.id ?? null,
       },
     });
   });

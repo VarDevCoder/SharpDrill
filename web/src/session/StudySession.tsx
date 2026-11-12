@@ -1,3 +1,4 @@
+import { Icon } from '../components/Icon';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
@@ -97,7 +98,7 @@ export function StudySession({ items: initial, mode, title, onExit, onRestart }:
   if (items.length === 0) {
     return (
       <div className="empty card">
-        <div className="empty-icon" aria-hidden="true">✓</div>
+        <div className="empty-icon" aria-hidden="true"><Icon name="check" /></div>
         <h2>¡Todo al día!</h2>
         <p>No hay elementos pendientes con estos filtros. Vuelve más tarde o aprende algo nuevo.</p>
         <div className="row center"><Link className="btn" to="/temario">Ver temario</Link><Link className="btn ghost" to="/drills">Hacer drills</Link></div>
@@ -234,7 +235,7 @@ function QuestionView({ q, tags, answer, selected, fill, setFill, onAnswer, onNe
       {answer && (
         <>
           <div className={`feedback ${answer.correct ? 'ok' : 'ko'}`} role="status">
-            <strong>{answer.correct ? '✓ ¡Correcto!' : '✗ Incorrecto'}</strong>
+            <strong><Icon name={answer.correct ? 'check' : 'close'} /> {answer.correct ? '¡Correcto!' : 'Incorrecto'}</strong>
             <Markdown source={answer.explanation} />
             <p className="muted small">Próximo repaso en {formatInterval(answer.next.interval)}</p>
           </div>

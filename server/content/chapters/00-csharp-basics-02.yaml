@@ -1,0 +1,142 @@
+id: cs-start-02
+number: 2
+title: "Variables, tipos y cálculos"
+level: "Inicial"
+track: csharp-basics
+summary: "Guarda nombres, cantidades y precios; calcula un total y lee un dato desde la consola."
+objectives:
+  - "Elegir string, int, decimal y bool para datos sencillos."
+  - "Distinguir asignar un valor de hacer un cálculo."
+  - "Leer un nombre y mostrar un mensaje con interpolación."
+sections:
+  - id: s1
+    title: "Dale un nombre a cada dato"
+    body: |
+      Una variable es un nombre asociado a un dato que podemos usar y, normalmente, cambiar. En `int stock = 12;`, int es el tipo de dato, stock es el nombre y 12 es el valor inicial. El signo `=` asigna el valor de la derecha a la variable de la izquierda.
+
+      Reemplaza Program.cs con este ejemplo completo y ejecútalo:
+
+      ```csharp
+      string producto = "Martillo";
+      int stock = 12;
+      decimal precio = 25000m;
+      bool disponible = true;
+      Console.WriteLine(producto);
+      Console.WriteLine(stock);
+      Console.WriteLine(precio);
+      Console.WriteLine(disponible);
+      ```
+
+      Usa `string` para texto, `int` para números enteros, `decimal` para cantidades decimales como precios y `bool` para verdadero o falso. La letra `m` indica que el número es decimal. Los valores booleanos se escriben `true` y `false`, sin comillas; al imprimirlos verás True o False.
+
+      Escribe nombres claros: precio, cantidad, stock. `"12"` es texto; `12` es un número. Aunque se parezcan al mostrarlos, no sirven para las mismas operaciones.
+  - id: s2
+    title: "Calcula y actualiza valores"
+    body: |
+      Los operadores `+`, `-`, `*` y `/` suman, restan, multiplican y dividen. Los paréntesis agrupan operaciones, como en matemáticas. Para calcular el importe de una venta multiplica precio por cantidad:
+
+      ```csharp
+      decimal precio = 25000m;
+      int cantidad = 2;
+      decimal total = precio * cantidad;
+      int stock = 12;
+      stock = stock - cantidad;
+      Console.WriteLine(total);
+      Console.WriteLine(stock);
+      ```
+
+      La salida es 50000 y luego 10. `stock = stock - cantidad` primero calcula 12 - 2 y luego guarda 10 en stock. El tipo se escribe al declarar la variable; para actualizarla no vuelvas a declarar `int stock`.
+
+      Cuidado con la división de enteros: `5 / 2` produce 2. Si necesitas la parte decimal, usa un operando decimal como `5m / 2`, que produce 2,5 (o 2.5 según la configuración regional).
+
+      **Hazlo tú:** vende 3 unidades de un producto de precio 15000m y stock 8. Deberías obtener un total de 45000 y un stock restante de 5.
+  - id: s3
+    title: "Construye mensajes con tus datos"
+    body: |
+      La interpolación permite insertar valores dentro de un texto. Escribe `$` antes de las comillas y coloca cada expresión entre llaves:
+
+      ```csharp
+      string producto = "Martillo";
+      int cantidad = 2;
+      decimal precio = 25000m;
+      Console.WriteLine($"Producto: {producto}");
+      Console.WriteLine($"Cantidad: {cantidad}");
+      Console.WriteLine($"Total: {precio * cantidad}");
+      ```
+
+      El resultado incluye Producto: Martillo, Cantidad: 2 y Total: 50000. Las llaves no aparecen en la salida: se reemplazan por el valor calculado. Sin el `$`, las llaves y el nombre serían texto literal.
+
+      En el código C# los literales decimales usan punto (`12.5m`), aunque la consola pueda mostrarlos con coma según la región. Esa diferencia de presentación no cambia el valor.
+  - id: s4
+    title: "Lee un nombre y comprueba tu aprendizaje"
+    body: |
+      `Console.ReadLine()` espera a que escribas una línea y pulses Enter. Su resultado es texto, no un número. Puede devolver null cuando no hay más entrada. Por ahora usa `?? ""` para sustituir ese caso por texto vacío:
+
+      ```csharp
+      Console.WriteLine("¿Cómo te llamas?");
+      string nombre = Console.ReadLine() ?? "";
+      Console.WriteLine($"Hola, {nombre}");
+      ```
+
+      **Hazlo tú:** pide el nombre de un producto y muestra una etiqueta con ese nombre y un precio fijo de 12000m. Prueba con un nombre de una palabra, uno de varias y con una línea vacía. No intentes leer precios numéricos todavía: aprenderás a validar esos datos en el siguiente capítulo.
+
+      **Antes de avanzar:** explica por qué el nombre es string, el stock es int y el precio es decimal. Después cambia los valores del ejemplo de venta y calcula la salida a mano antes de ejecutar.
+cards:
+  - id: c1
+    front: "¿Qué significa int stock = 12;?"
+    back: "Declara una variable entera llamada stock y le asigna el valor inicial 12."
+  - id: c2
+    front: "¿Qué tipo usarías para un nombre, un stock y un precio?"
+    back: "string para el nombre, int para el stock y decimal para el precio."
+  - id: c3
+    front: "¿Qué significa la m en 12.5m?"
+    back: "Indica que el literal numérico tiene tipo decimal."
+  - id: c4
+    front: "¿Para qué sirven $ y las llaves en una cadena interpolada?"
+    back: "El $ habilita la interpolación y las llaves delimitan expresiones cuyos valores se insertan en el texto."
+  - id: c5
+    front: "¿Console.ReadLine devuelve automáticamente un número si escribes 12?"
+    back: "No. Devuelve texto (o null si se termina la entrada). Para obtener un número debes convertir y validar."
+questions:
+  - id: q1
+    type: mcq
+    prompt: "¿Qué tipo representa mejor un precio con centavos en estos ejemplos?"
+    options: ["bool", "int", "decimal"]
+    answer: 2
+    explanation: "decimal permite representar cantidades decimales y es apropiado para los precios de nuestros ejercicios."
+  - id: q2
+    type: fill
+    prompt: "¿Qué valor imprime?"
+    code: |
+      int stock = 8;
+      stock = stock - 3;
+      Console.WriteLine(stock);
+    lang: csharp
+    answer: "5"
+    explanation: "Primero se calcula 8 - 3 y después se guarda el resultado en stock."
+  - id: q3
+    type: tf
+    prompt: "El texto \"12\" y el número 12 tienen el mismo tipo."
+    answer: false
+    explanation: "Con comillas es string; sin comillas, el literal 12 es int."
+  - id: q4
+    type: mcq
+    prompt: "¿Qué imprime este código?"
+    code: |
+      int cantidad = 2;
+      Console.WriteLine($"Cantidad: {cantidad}");
+    lang: csharp
+    options: ["Cantidad: {cantidad}", "Cantidad: 2", "cantidad"]
+    answer: 1
+    explanation: "La cadena interpolada sustituye {cantidad} por el valor 2."
+  - id: q5
+    type: fill
+    prompt: "¿Cuál es el resultado de 5 / 2 cuando ambos operandos son int?"
+    answer: "2"
+    explanation: "La división entre enteros descarta la parte fraccionaria. Con 5m / 2 obtendrías un resultado decimal."
+  - id: q6
+    type: mcq
+    prompt: "¿Qué representa el tipo bool?"
+    options: ["Un texto largo", "Un precio", "Verdadero o falso"]
+    answer: 2
+    explanation: "bool solo tiene dos valores: true y false."

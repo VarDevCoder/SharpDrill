@@ -65,7 +65,7 @@ test('Función de Vercel sin BD configurada: health 200 y API 503 con instruccio
   try {
     const h = await (await fetch(`${base}/api/health`)).json();
     assert.equal(h.configured, false);
-    assert.equal(h.chapters, 24);
+    assert.equal(h.chapters, 30);
     const r = await fetch(`${base}/api/chapters`);
     assert.equal(r.status, 503);
     assert.match((await r.json()).error, /TURSO_DATABASE_URL/);

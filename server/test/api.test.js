@@ -141,7 +141,7 @@ test('Tokens de API personales: crear, usar, listar y revocar', async () => {
 test('Capítulos: tracks y preguntas/drills sin respuesta', async () => {
   const list = await api('GET', '/api/chapters');
   assert.equal(list.data.chapters.length, content.chapters.length);
-  assert.equal(list.data.tracks.length, 5);
+  assert.equal(list.data.tracks.length, 6);
   const [drillId, drill] = firstDrill();
   const ch = await api('GET', `/api/chapters/${drill.chapterId}`);
   for (const q of ch.data.chapter.questions) assert.equal(q.answer, undefined);
@@ -170,7 +170,7 @@ test('Responder preguntas y calificar tarjetas actualiza SM-2 y estadísticas', 
   assert.equal(stats.data.totals.attempts, 3);
   assert.equal(stats.data.streak, 1);
   assert.equal(stats.data.weak[0].id, 'ch01.q2');
-  assert.equal(stats.data.tracks.length, 5);
+  assert.equal(stats.data.tracks.length, 6);
 });
 
 test('Cola filtrada por track y por tipo', async () => {

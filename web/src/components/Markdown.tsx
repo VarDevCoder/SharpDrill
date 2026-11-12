@@ -8,7 +8,7 @@ async function onCopyClick(e: React.MouseEvent<HTMLElement>) {
   const code = btn.closest('.code')?.querySelector('code')?.textContent ?? '';
   try {
     await navigator.clipboard.writeText(code);
-    btn.textContent = 'Copiado ✓';
+    btn.textContent = 'Copiado';
   } catch {
     btn.textContent = 'No se pudo copiar';
   }

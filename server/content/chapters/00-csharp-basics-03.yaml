@@ -1,0 +1,153 @@
+id: cs-start-03
+number: 3
+title: "Decisiones, validaciones y bucles"
+level: "Inicial"
+track: csharp-basics
+summary: "Decide con if, valida lo que escribe el usuario y repite tareas con for y while."
+objectives:
+  - "Usar condiciones para aceptar o rechazar una venta."
+  - "Convertir texto a un entero con TryParse sin romper el programa."
+  - "Escribir un bucle que termine y comprender cuántas veces se ejecuta."
+sections:
+  - id: s1
+    title: "Elige qué instrucciones ejecutar"
+    body: |
+      Una condición produce true o false. `if` ejecuta un bloque cuando la condición es verdadera; `else` ejecuta la alternativa cuando es falsa. Las llaves delimitan cada bloque.
+
+      ```csharp
+      int stock = 4;
+      int cantidad = 2;
+      if (cantidad <= stock)
+      {
+          Console.WriteLine("Hay stock suficiente");
+      }
+      else
+      {
+          Console.WriteLine("No alcanza el stock");
+      }
+      ```
+
+      Este programa muestra Hay stock suficiente. Cambia cantidad a 5 y comprueba la otra rama. `<=` significa menor o igual; también tienes `<`, `>`, `>=`, `==` (igualdad) y `!=` (distinto). No confundas `=` para asignar con `==` para comparar.
+
+      Todavía falta una regla: una cantidad negativa también es menor que stock. Combina condiciones con `&&` (ambas deben cumplirse): `cantidad > 0 && cantidad <= stock`. Usa `||` cuando baste con que se cumpla una de las condiciones y `!` para negar un booleano.
+  - id: s2
+    title: "Acepta solo números válidos"
+    body: |
+      El usuario puede escribir letras, una línea vacía o un número fuera del rango permitido. `int.TryParse` intenta convertir el texto a int y devuelve true si puede hacerlo. `out int cantidad` crea la variable donde se recibe el resultado; úsala como dato válido solo cuando la conversión fue exitosa.
+
+      ```csharp
+      Console.WriteLine("Cantidad a comprar:");
+      string entrada = Console.ReadLine() ?? "";
+      if (int.TryParse(entrada, out int cantidad) && cantidad > 0)
+      {
+          Console.WriteLine($"Solicitaste {cantidad} unidades");
+      }
+      else
+      {
+          Console.WriteLine("Escribe un número entero mayor que cero");
+      }
+      ```
+
+      Prueba con 3, con cero, con -2 y con hola. Solo 3 debe aceptarse. `&&` evalúa la parte derecha únicamente cuando la izquierda es verdadera. Una conversión exitosa no basta: el cero y los negativos son enteros, pero aquí no son cantidades permitidas.
+
+      **Hazlo tú:** añade un stock fijo de 4 y acepta únicamente cantidades positivas que no superen ese stock. Comprueba también el valor exacto 4: debe aceptarse.
+  - id: s3
+    title: "Repite un número conocido de veces"
+    body: |
+      Un bucle evita copiar la misma instrucción muchas veces. `for` reúne tres partes: el valor inicial, la condición para seguir y el cambio después de cada vuelta.
+
+      ```csharp
+      for (int numero = 1; numero <= 3; numero++)
+      {
+          Console.WriteLine($"Etiqueta {numero}");
+      }
+      ```
+
+      La salida es Etiqueta 1, Etiqueta 2 y Etiqueta 3, cada una en su línea. `numero++` aumenta numero en uno. Cuando llega a 4, `numero <= 3` es false y el bucle termina. La variable numero declarada en el for solo está disponible dentro de ese for.
+
+      **Hazlo tú:** imprime cinco etiquetas. Luego empieza en cero y usa `numero < 5`. Obtendrás cinco vueltas también, con los valores 0, 1, 2, 3 y 4. Cuenta las vueltas; no confundas el último valor con la cantidad de repeticiones.
+  - id: s4
+    title: "Repite hasta que el usuario termine"
+    body: |
+      Usa `while` cuando quieras repetir mientras una condición siga siendo verdadera. Este ejemplo pide comandos hasta que el usuario escribe salir o se termina la entrada:
+
+      ```csharp
+      string comando = "";
+      while (comando != "salir")
+      {
+          Console.WriteLine("Escribe salir para terminar, o pulsa Enter para continuar:");
+          comando = Console.ReadLine() ?? "salir";
+      }
+      Console.WriteLine("Programa terminado");
+      ```
+
+      La condición se comprueba antes de cada vuelta. Aquí actualizamos comando dentro del bucle para que pueda terminar. Si nunca cambias aquello de lo que depende la condición, puedes crear un bucle infinito. En la terminal, Ctrl+C permite interrumpir un programa que no termina.
+
+      **Antes de avanzar:** prueba una venta con cantidad 1, cantidad igual al stock, cantidad superior, cero, un negativo y texto. Explica cuáles se aceptan y por qué. No necesitas memorizar toda la sintaxis: puedes consultar el ejemplo mientras practicas.
+cards:
+  - id: c1
+    front: "¿Qué diferencia hay entre = y ==?"
+    back: "= asigna un valor; == compara si dos valores son iguales."
+  - id: c2
+    front: "¿Cuándo es verdadera una condición A && B?"
+    back: "Cuando ambas son verdaderas. Si A es falsa, B no se evalúa."
+  - id: c3
+    front: "¿Qué devuelve int.TryParse si el texto no es un entero válido?"
+    back: "Devuelve false. Así puedes mostrar un mensaje y pedir un dato correcto."
+  - id: c4
+    front: "¿Qué hace numero++?"
+    back: "Aumenta numero en uno. En un for suele actualizar el contador después de cada vuelta."
+  - id: c5
+    front: "¿Qué debes revisar para evitar un while infinito?"
+    back: "Que haya una forma de cambiar la condición o de salir del bucle."
+questions:
+  - id: q1
+    type: mcq
+    prompt: "Con stock = 4, ¿qué condición permite comprar entre 1 y 4 unidades?"
+    options: ["cantidad <= stock", "cantidad > 0 && cantidad <= stock", "cantidad > stock"]
+    answer: 1
+    explanation: "La condición comprueba que la cantidad sea positiva y que no supere el stock."
+  - id: q2
+    type: tf
+    prompt: "Si TryParse acepta -2, entonces -2 es automáticamente una cantidad de venta válida."
+    answer: false
+    explanation: "Convertir y validar reglas del negocio son pasos distintos: -2 es un entero, pero no una venta permitida."
+  - id: q3
+    type: fill
+    prompt: "¿Cuántas veces se ejecuta WriteLine?"
+    code: |
+      for (int i = 0; i < 3; i++)
+      {
+          Console.WriteLine(i);
+      }
+    lang: csharp
+    answer: "3"
+    explanation: "Se ejecuta para i igual a 0, 1 y 2. Cuando i vale 3, la condición es falsa."
+  - id: q4
+    type: mcq
+    prompt: "¿Qué operador compara igualdad?"
+    options: ["=", "++", "=="]
+    answer: 2
+    explanation: "== compara; = asigna; ++ incrementa."
+  - id: q5
+    type: mcq
+    prompt: "¿Qué muestra este código?"
+    code: |
+      int stock = 0;
+      if (stock > 0)
+      {
+          Console.WriteLine("Disponible");
+      }
+      else
+      {
+          Console.WriteLine("Agotado");
+      }
+    lang: csharp
+    options: ["Disponible", "Agotado", "Ambos mensajes"]
+    answer: 1
+    explanation: "0 > 0 es falso; por eso se ejecuta únicamente el bloque else."
+  - id: q6
+    type: tf
+    prompt: "Un while puede ejecutar cero vueltas si su condición ya es falsa al comienzo."
+    answer: true
+    explanation: "La condición se comprueba antes de entrar al bloque."

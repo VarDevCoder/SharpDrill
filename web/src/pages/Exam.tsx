@@ -1,3 +1,4 @@
+import { Icon, TRACK_ICON } from '../components/Icon';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
@@ -5,7 +6,7 @@ import { useAsync, useNow } from '../hooks';
 import { ErrorBox, Loading } from '../components/ui';
 import { CodeBlock, Inline, Markdown } from '../components/Markdown';
 import { useToast } from '../components/Toast';
-import { formatMs, TRACK_ICON } from '../lib/format';
+import { formatMs } from '../lib/format';
 import type { ChapterSummary, Exam, ExamResult, QuestionItem, Track } from '../types';
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
@@ -23,7 +24,7 @@ export function ChapterPicker({ chapters, tracks, selected, onChange }: {
     <div className="picker">
       {tracks.map((t) => (
         <div key={t.id} className="picker-track">
-          <button type="button" className="chip chip-track" onClick={() => toggleTrack(t.id)}>{TRACK_ICON[t.id]} {t.title}</button>
+          <button type="button" className="chip chip-track" onClick={() => toggleTrack(t.id)}><Icon name={TRACK_ICON[t.id] ?? 'book'} /> {t.title}</button>
           <div className="chips">
             {chapters.filter((c) => c.track === t.id).map((c) => (
               <label key={c.id} className="chip">
@@ -180,7 +181,7 @@ function ExamResults({ r, onAgain }: { r: ExamResult; onAgain: () => void }) {
         <h2>Resultado del examen</h2>
         <div className="stats-row">
           <div className="stat"><span className="stat-n">{r.score}/{r.total}</span><span className="stat-l">aciertos</span></div>
-          <div className="stat"><span className="stat-n">{score}%</span><span className="stat-l">{score >= 80 ? 'nivel senior 💪' : score >= 60 ? 'aprobado' : 'a reforzar'}</span></div>
+          <div className="stat"><span className="stat-n">{score}%</span><span className="stat-l">{score >= 80 ? 'nivel senior' : score >= 60 ? 'aprobado' : 'a reforzar'}</span></div>
           <div className="stat"><span className="stat-n">{Math.ceil(r.elapsed / 60)}</span><span className="stat-l">min</span></div>
         </div>
         {r.late && <p className="center warn">Entregado fuera de tiempo: las respuestas no puntúan.</p>}
@@ -188,7 +189,7 @@ function ExamResults({ r, onAgain }: { r: ExamResult; onAgain: () => void }) {
       </div>
       {r.results.map((q, i) => (
         <article key={q.id} className={`card item ${q.correct ? 'res-ok' : 'res-ko'}`}>
-          <div className="tags"><span className="tag">Pregunta {i + 1}</span><span className={`tag ${q.correct ? 'tag-ok' : 'tag-ko'}`}>{q.correct ? '✓ Correcta' : '✗ Incorrecta'}</span></div>
+          <div className="tags"><span className="tag">Pregunta {i + 1}</span><span className={`tag ${q.correct ? 'tag-ok' : 'tag-ko'}`}><Icon name={q.correct ? 'check' : 'close'} /> {q.correct ? 'Correcta' : 'Incorrecta'}</span></div>
           <div className="prompt"><Markdown source={q.prompt} /></div>
           {q.code && <CodeBlock code={q.code} lang={q.lang ?? 'csharp'} />}
           <p><strong>Tu respuesta:</strong> {show(q, q.answer)}</p>

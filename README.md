@@ -1,16 +1,25 @@
 # SharpDrill
 
-Entrenamiento **senior** con **repaso activo** y **drills de código cronometrados** sobre un stack empresarial realista:
+Aprendizaje de **C# desde cero**, además de entrenamiento **senior** con **repaso activo** y **drills de código cronometrados** sobre un stack empresarial realista:
 
 | Ruta | Capítulos |
 |---|---|
+| **C# desde cero** (6) | Primer programa · Variables y tipos · Decisiones y bucles · Funciones y listas · Clases y errores · Proyecto de inventario por consola |
 | **C# y .NET** (12) | CLR y tipos · GC y recursos · Genéricos · Delegados y closures · LINQ · Async/await · Concurrencia · C# 10→14 · Rendimiento (Span) · Reflexión y source generators · Arquitectura y DI · ASP.NET Core + EF Core |
 | **Bases de datos y PL/SQL** (3) | SQL avanzado en Oracle (índices, planes, MVCC, analíticas, MERGE) · PL/SQL esencial · PL/SQL avanzado (BULK COLLECT/FORALL, SQL dinámico, triggers, autónomas) |
 | **React y Next.js** (2) | React con TypeScript (TSX) · Next.js App Router |
 | **APIs** (3) | HTTP, curl y Bearer/JWT/OAuth · Postman y Newman · Azure API Management |
 | **Inglés profesional** (4) | Día a día del equipo (standups, PRs, code review, bugs) · Explicar tu trabajo técnico (arquitectura, trade-offs, incidentes) · Clientes y comercios (reuniones, alcance, facturas y pagos) · Venderte como full-stack (pitch, STAR, entrevistas, negociación) |
 
-**Contenido:** 24 capítulos, 99 secciones de teoría, 210 flashcards, 198 preguntas, **48 drills cronometrados** (C#, PL/SQL, SQL, React TSX, TypeScript, curl, scripts de Postman, políticas XML de APIM y redacción profesional en inglés), **78 snippets** y **74 atajos de teclado** (Visual Studio, Rider, VS Code, SQL Developer, SQLcl, Postman, Chrome DevTools y bash).
+**Contenido:** 30 capítulos, 123 secciones de teoría, 240 flashcards, 234 preguntas, **48 drills cronometrados** (C#, PL/SQL, SQL, React TSX, TypeScript, curl, scripts de Postman, políticas XML de APIM y redacción profesional en inglés), **78 snippets** y **74 atajos de teclado** (Visual Studio, Rider, VS Code, SQL Developer, SQLcl, Postman, Chrome DevTools y bash).
+
+## C# desde cero
+
+Desde Inicio, elige **Empiezo desde cero**, o abre `/temario?track=csharp-basics`. La ruta tiene seis capítulos ordenados, 24 secciones, 30 flashcards y 36 preguntas con explicación. No requiere conocimientos previos ni incluye ejercicios con cuenta regresiva. Los ejemplos C# se ejecutan en el equipo del estudiante; la web no incorpora un compilador C#.
+
+Preparación: [SDK de .NET 10](https://dotnet.microsoft.com/download/dotnet/10.0) y [guía oficial de consola de Microsoft](https://learn.microsoft.com/es-es/dotnet/core/tutorials/with-visual-studio-code). Cada lección combina explicación, ejemplos completos, ejercicios guiados y criterios para avanzar. El proyecto final lista productos, valida ventas y actualiza stock en memoria; incluye solución y casos de prueba manuales.
+
+Los IDs `cs-start-01` a `cs-start-06` son independientes de los capítulos existentes. Las lecturas, respuestas y repasos usan la persistencia actual por usuario; no se requiere una migración de base de datos. La navegación inicial termina en el proyecto, sin saltar automáticamente al catálogo senior. Elegir un acceso desde Inicio no guarda un nivel de experiencia ni bloquea otras rutas.
 
 ## Cómo se estudia
 
@@ -162,7 +171,7 @@ Todas las rutas requieren sesión (cookie o `Authorization: Bearer`), salvo `reg
 
 ## Añadir contenido
 
-Cada capítulo es un YAML en `server/content/chapters/` con `track` (`csharp` | `db` | `react` | `api` | `english`), `sections`, `cards`, `questions` y, opcionalmente, `drills`, `snippets` y `shortcuts`:
+Cada capítulo es un YAML en `server/content/chapters/` con `track` (`csharp-basics` | `csharp` | `db` | `react` | `api` | `english`), `sections`, `cards`, `questions` y, opcionalmente, `drills`, `snippets` y `shortcuts`. Se ordenan por ruta y luego por número; los IDs deben ser únicos aunque dos rutas usen el mismo número de capítulo:
 
 ```yaml
 drills:

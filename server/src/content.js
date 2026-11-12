@@ -7,6 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export const CONTENT_DIR = join(__dirname, '..', 'content', 'chapters');
 
 export const TRACKS = {
+  'csharp-basics': { id: 'csharp-basics', title: 'C# desde cero', order: 0 },
   csharp: { id: 'csharp', title: 'C# y .NET', order: 1 },
   db: { id: 'db', title: 'Bases de datos y PL/SQL', order: 2 },
   react: { id: 'react', title: 'React y Next.js', order: 3 },
@@ -114,7 +115,7 @@ export function loadContent(dir = CONTENT_DIR) {
     chapters.push(ch);
   }
   if (errors.length) throw new Error('Contenido inválido:\n' + errors.join('\n'));
-  chapters.sort((a, b) => a.number - b.number);
+  chapters.sort((a, b) => TRACKS[a.track].order - TRACKS[b.track].order || a.number - b.number);
 
   const chapterById = new Map();
   const items = new Map(); // itemId global -> { kind, chapterId, data }

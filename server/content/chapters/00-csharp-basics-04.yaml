@@ -1,0 +1,145 @@
+id: cs-start-04
+number: 4
+title: "Funciones y listas"
+level: "Inicial"
+track: csharp-basics
+summary: "Divide problemas en pasos pequeños, reutiliza cálculos y trabaja con varios productos."
+objectives:
+  - "Declarar y llamar una función con parámetros y retorno."
+  - "Crear una List<string>, agregar elementos y recorrerla."
+  - "Probar una solución con ejemplos pequeños antes de ampliarla."
+sections:
+  - id: s1
+    title: "Ponle nombre a un cálculo"
+    body: |
+      Si calculas importes en varios lugares, puedes poner esa tarea dentro de una función. Una función recibe datos mediante **parámetros** y puede devolver un resultado con `return`. Aquí usamos una función local dentro de Program.cs:
+
+      ```csharp
+      decimal CalcularTotal(decimal precio, int cantidad)
+      {
+          return precio * cantidad;
+      }
+
+      decimal total = CalcularTotal(12000m, 3);
+      Console.WriteLine(total);
+      ```
+
+      El primer decimal indica el tipo del resultado. precio y cantidad son los parámetros. En la llamada, 12000m y 3 son los argumentos concretos. La salida es 36000. Declarar la función no ejecuta su cuerpo: la llamada `CalcularTotal(...)` lo hace.
+
+      No confundas devolver con imprimir: `return` entrega el resultado a quien llamó; `Console.WriteLine` lo muestra en pantalla. Separarlos permite reutilizar el cálculo sin obligarte a imprimirlo.
+  - id: s2
+    title: "Funciones que hacen una tarea"
+    body: |
+      Una función con tipo de retorno `void` realiza una tarea sin devolver un valor. Puedes usarla para mostrar un encabezado:
+
+      ```csharp
+      void MostrarTitulo(string titulo)
+      {
+          Console.WriteLine("--------------------");
+          Console.WriteLine(titulo);
+          Console.WriteLine("--------------------");
+      }
+
+      MostrarTitulo("Mi inventario");
+      MostrarTitulo("Resumen de ventas");
+      ```
+
+      Las dos llamadas reutilizan las mismas instrucciones con textos distintos. Los parámetros son variables disponibles dentro de la función. Usa nombres que expliquen la tarea: MostrarTitulo o CalcularTotal, en lugar de nombres como HacerAlgo.
+
+      **Hazlo tú:** escribe una función `CalcularStockRestante` que reciba stock y cantidad como int y devuelva la resta. Llama a la función con 8 y 3: debe devolver 5. Por ahora el llamador debe comprobar que la cantidad sea válida; separar funciones no elimina esa responsabilidad.
+  - id: s3
+    title: "Guarda varios elementos en una lista"
+    body: |
+      Una variable string guarda un texto. `List<string>` permite guardar varios textos en orden. Lee esa expresión como lista de strings; estudiarás los genéricos en profundidad más adelante. El `using` permite usar List sin escribir su nombre completo.
+
+      ```csharp
+      using System.Collections.Generic;
+
+      List<string> productos = new List<string>();
+      productos.Add("Martillo");
+      productos.Add("Clavo");
+      Console.WriteLine(productos.Count);
+      Console.WriteLine(productos[0]);
+      ```
+
+      `new` crea la lista y `Add` agrega un elemento al final. `Count` indica cuántos elementos contiene: aquí 2. Los índices empiezan en cero: `productos[0]` es Martillo y `productos[1]` es Clavo. El índice 2 no existe en esta lista.
+
+      Evita acceder a una posición que no existe. Antes de usar el índice cero, por ejemplo, comprueba que Count sea mayor que cero. Una lista recién creada está vacía; no contiene un primer elemento automáticamente.
+  - id: s4
+    title: "Recorre la lista y resuelve un problema pequeño"
+    body: |
+      `foreach` toma cada elemento de una colección y ejecuta el bloque para él. No necesitas manejar índices:
+
+      ```csharp
+      using System.Collections.Generic;
+
+      List<string> productos = new List<string>();
+      productos.Add("Martillo");
+      productos.Add("Clavo");
+      foreach (string producto in productos)
+      {
+          Console.WriteLine(producto);
+      }
+      ```
+
+      Se imprimen Martillo y Clavo, en ese orden. En una lista vacía el cuerpo del foreach no se ejecuta. No agregues ni quites elementos de esa lista mientras la recorres con este foreach.
+
+      **Ejercicio:** crea una lista con tres productos, muestra el título con una función void, recorre sus nombres y muestra Count al final. Ejecuta una vez con tres elementos y otra sin ningún Add. Debe funcionar también vacía.
+
+      **Antes de avanzar:** explica la diferencia entre parámetro y argumento, entre return y WriteLine, y entre Count y el último índice. Ya puedes dividir una tarea grande en partes más pequeñas y comprobables.
+cards:
+  - id: c1
+    front: "¿Qué diferencia hay entre un parámetro y un argumento?"
+    back: "El parámetro es el nombre declarado en la función; el argumento es el dato que pasas en una llamada."
+  - id: c2
+    front: "¿return y Console.WriteLine hacen lo mismo?"
+    back: "No. return entrega un resultado al llamador; WriteLine muestra un valor en la consola."
+  - id: c3
+    front: "¿Qué significa void en una función?"
+    back: "Que no devuelve un valor al llamador. Puede realizar acciones, como mostrar mensajes."
+  - id: c4
+    front: "Si una lista tiene tres elementos, ¿qué índices son válidos?"
+    back: "0, 1 y 2. Count vale 3, pero el último índice es Count - 1."
+  - id: c5
+    front: "¿Para qué sirve foreach?"
+    back: "Para recorrer los elementos de una colección, ejecutando un bloque para cada uno."
+questions:
+  - id: q1
+    type: fill
+    prompt: "¿Qué valor imprime?"
+    code: |
+      int Doble(int numero)
+      {
+          return numero * 2;
+      }
+      Console.WriteLine(Doble(4));
+    lang: csharp
+    answer: "8"
+    explanation: "La llamada pasa 4; la función devuelve 4 * 2 y WriteLine muestra 8."
+  - id: q2
+    type: mcq
+    prompt: "¿Qué palabra indica que una función no devuelve un valor?"
+    options: ["string", "return", "void"]
+    answer: 2
+    explanation: "void indica ausencia de valor de retorno."
+  - id: q3
+    type: tf
+    prompt: "Declarar una función ejecuta automáticamente su cuerpo."
+    answer: false
+    explanation: "Debes llamarla para ejecutar sus instrucciones."
+  - id: q4
+    type: mcq
+    prompt: "Una lista contiene Martillo y Clavo, en ese orden. ¿Qué devuelve productos[0]?"
+    options: ["Martillo", "Clavo", "El número de productos"]
+    answer: 0
+    explanation: "Los índices empiezan en cero; el primer elemento es Martillo."
+  - id: q5
+    type: fill
+    prompt: "Creas una lista vacía y ejecutas Add tres veces. ¿Cuánto vale Count?"
+    answer: "3"
+    explanation: "Cada Add añade un elemento; Count informa la cantidad total."
+  - id: q6
+    type: tf
+    prompt: "Un foreach sobre una lista vacía ejecuta su cuerpo una vez."
+    answer: false
+    explanation: "No hay elementos que recorrer, así que el cuerpo se ejecuta cero veces."

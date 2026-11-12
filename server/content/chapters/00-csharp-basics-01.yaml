@@ -1,0 +1,132 @@
+id: cs-start-01
+number: 1
+title: "Tu primer programa"
+level: "Inicial"
+track: csharp-basics
+summary: "Qué es programar, cómo preparar tu equipo y cómo ejecutar y modificar tu primer programa en C#."
+objectives:
+  - "Distinguir el código, el editor y las herramientas de .NET."
+  - "Ejecutar un programa que muestre un mensaje y cambiarlo por uno propio."
+  - "Leer un error sencillo sin abandonar el ejercicio."
+sections:
+  - id: s1
+    title: "Programar es dar instrucciones"
+    body: |
+      No necesitas experiencia previa. Un programa es una secuencia de instrucciones que una computadora ejecuta. Si quieres mostrar el precio de un producto, primero necesitas sus datos, luego calculas el resultado y finalmente lo muestras.
+
+      **C#** es el lenguaje en el que escribiremos esas instrucciones. **.NET** proporciona herramientas para convertirlas en un programa y ejecutarlo. Un **editor**, como Visual Studio Code, sirve para escribir y guardar el código. Son piezas distintas.
+
+      En esta ruta usarás una **consola**: una ventana de texto donde el programa muestra mensajes y recibe lo que escribes. Más adelante podrás construir interfaces gráficas; ahora nos interesa entender qué hace cada instrucción.
+
+      Trabaja en este orden: lee una sección, ejecuta el ejemplo, cambia algo y explica qué pasó. Después marca la sección como leída y abre Práctica. No hay límite de tiempo. El código de las lecciones se ejecuta en tu equipo; SharpDrill guarda tus lecturas y tus respuestas, pero no ejecuta C# en el navegador.
+  - id: s2
+    title: "Prepara el entorno y crea el proyecto"
+    body: |
+      Instala el **SDK de .NET 10** para tu sistema desde `https://dotnet.microsoft.com/download/dotnet/10.0`. El SDK incluye las herramientas para desarrollar; instalar solamente el runtime no alcanza. Puedes escribir los archivos con Visual Studio Code u otro editor de texto.
+
+      Abre una terminal (PowerShell en Windows) en una carpeta donde quieras guardar tus ejercicios. Escribe este comando y pulsa Enter:
+
+      ```bash
+      dotnet --version
+      ```
+
+      Debe aparecer una versión. Si el comando no se reconoce, comprueba la instalación del SDK y abre una terminal nueva. Luego ejecuta estos comandos, uno por uno:
+
+      ```bash
+      dotnet new console -n MiPrimerPrograma
+      cd MiPrimerPrograma
+      dotnet run
+      ```
+
+      El primero crea una carpeta y un proyecto de consola; el segundo entra en esa carpeta; el tercero compila y ejecuta el programa. Deberías ver `Hello, World!`. La primera creación puede necesitar conexión para restaurar el proyecto.
+
+      Abre la carpeta MiPrimerPrograma en tu editor. El archivo **Program.cs** contiene el código inicial y el archivo terminado en **.csproj** describe el proyecto. Para estos ejercicios modificarás Program.cs. Los comandos van en la terminal, no dentro de ese archivo.
+  - id: s3
+    title: "Lee y cambia tu primera instrucción"
+    body: |
+      Reemplaza el contenido de Program.cs por este ejemplo completo. Guarda el archivo y ejecuta `dotnet run` en la carpeta del proyecto:
+
+      ```csharp
+      Console.WriteLine("Hola, mundo");
+      Console.WriteLine("Estoy aprendiendo C#");
+      ```
+
+      `Console` permite trabajar con la consola. `WriteLine` muestra un valor y pasa a la siguiente línea. Los paréntesis contienen el dato que le entregamos; las comillas delimitan el texto; el punto y coma termina cada instrucción. C# distingue mayúsculas de minúsculas: escribe `WriteLine` tal como aparece.
+
+      La salida esperada es:
+
+      ```text
+      Hola, mundo
+      Estoy aprendiendo C#
+      ```
+
+      En estos ejemplos las instrucciones se ejecutan de arriba hacia abajo. No necesitas escribir una clase ni un método Main para comenzar: el proyecto de consola admite estas instrucciones directamente en Program.cs.
+  - id: s4
+    title: "Tu primer cambio y tu primer error"
+    body: |
+      **Hazlo tú:** cambia el saludo para que incluya tu nombre y agrega una tercera línea que diga qué te gustaría construir. Antes de ejecutar, escribe en papel qué tres líneas esperas ver. Comprueba que aparezcan en ese orden.
+
+      Si el programa no compila, lee el primer error: revisa la línea indicada, las comillas, los paréntesis, las mayúsculas y el punto y coma. Corrige una cosa por vez y vuelve a ejecutar. Si ves el mensaje anterior, comprueba que guardaste Program.cs y que la terminal está en la carpeta correcta.
+
+      Puedes añadir notas para ti mismo usando `//`. El compilador ignora desde esas dos barras hasta el final de la línea:
+
+      ```csharp
+      // Esta nota no aparece en la salida.
+      Console.WriteLine("Mi primera aplicación");
+      ```
+
+      **Antes de avanzar:** deberías poder crear el proyecto, cambiar un mensaje y ejecutarlo sin copiar todos los pasos. Marca las secciones que ya trabajaste y responde las preguntas de Práctica sin apuro.
+cards:
+  - id: c1
+    front: "¿Qué diferencia hay entre C# y .NET?"
+    back: "C# es el lenguaje. .NET aporta herramientas y bibliotecas para desarrollar y ejecutar programas."
+  - id: c2
+    front: "¿Qué instalas para desarrollar: SDK o solo runtime?"
+    back: "El SDK. Incluye herramientas de desarrollo; el runtime por sí solo sirve para ejecutar aplicaciones compatibles."
+  - id: c3
+    front: "¿Qué hace Console.WriteLine?"
+    back: "Muestra un valor en la consola y termina esa línea."
+  - id: c4
+    front: "¿Dónde ejecutas dotnet run?"
+    back: "En la terminal, dentro de la carpeta del proyecto. No se escribe en Program.cs."
+  - id: c5
+    front: "¿Qué haces cuando el programa no compila?"
+    back: "Lees el primer error, revisas la línea indicada y corriges un problema por vez antes de volver a ejecutar."
+questions:
+  - id: q1
+    type: mcq
+    prompt: "¿Qué necesitas instalar para crear y compilar estos proyectos?"
+    options: ["Solo un navegador", "El SDK de .NET", "Una base de datos"]
+    answer: 1
+    explanation: "El SDK incluye las herramientas para crear, compilar y ejecutar proyectos .NET."
+  - id: q2
+    type: mcq
+    prompt: "¿Qué muestra este programa, en orden?"
+    code: |
+      Console.WriteLine("Uno");
+      Console.WriteLine("Dos");
+    lang: csharp
+    options: ["Dos y luego Uno", "Uno y luego Dos, en líneas distintas", "UnoDos en una sola línea"]
+    answer: 1
+    explanation: "Las instrucciones se ejecutan en orden y cada WriteLine termina una línea."
+  - id: q3
+    type: fill
+    prompt: "Completa el método que muestra un mensaje y termina la línea: Console.____(\"Hola\");"
+    answer: WriteLine
+    explanation: "WriteLine escribe el mensaje y añade el salto de línea. En el código real debes respetar las mayúsculas."
+  - id: q4
+    type: tf
+    prompt: "El comando dotnet run se escribe dentro de Program.cs."
+    answer: false
+    explanation: "Es un comando de terminal. Program.cs contiene las instrucciones C#."
+  - id: q5
+    type: mcq
+    prompt: "Modificaste el mensaje pero sigue saliendo el anterior. ¿Qué compruebas primero?"
+    options: ["Que guardaste el archivo y ejecutas el proyecto correcto", "Que instalaste una base de datos", "Que el mensaje tiene más de diez letras"]
+    answer: 0
+    explanation: "Un archivo sin guardar o una terminal en otra carpeta puede hacer que ejecutes otro código."
+  - id: q6
+    type: tf
+    prompt: "Un comentario iniciado con // se imprime automáticamente."
+    answer: false
+    explanation: "El comentario ayuda a entender el código; no es una instrucción que imprima texto."

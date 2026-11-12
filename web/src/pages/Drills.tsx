@@ -1,3 +1,4 @@
+import { Icon } from '../components/Icon';
 import { useState } from 'react';
 import { api } from '../api';
 import { useAsync } from '../hooks';
@@ -44,7 +45,7 @@ export function DrillsPage() {
   return (
     <>
       <header className="page-head">
-        <h1>Drills de código ⏱</h1>
+        <h1>Drills de código <Icon name="timer" /></h1>
         <p className="muted">Escribe contra el reloj: PL/SQL, C#, React/TSX, curl, Postman, políticas de APIM y redacción profesional en inglés.
           El servidor mide el tiempo y verifica los puntos clave; después comparas con la solución de referencia.</p>
       </header>
@@ -64,7 +65,7 @@ export function DrillsPage() {
             <article key={d.id} className="card drill-card">
               <div className="tags">
                 <LangBadge lang={d.lang} />
-                <span className="tag">⏱ {formatMs(d.timeLimit * 1000)}</span>
+                <span className="tag"><Icon name="timer" /> {formatMs(d.timeLimit * 1000)}</span>
                 {d.bestMs != null && <span className="tag tag-ok">Mejor: {formatMs(d.bestMs)}</span>}
                 {d.due && <span className="tag tag-due">Toca repasar</span>}
                 {d.isNew && <span className="tag tag-new">Nuevo</span>}

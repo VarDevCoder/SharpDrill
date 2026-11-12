@@ -1,3 +1,4 @@
+import { Icon } from './Icon';
 import { useEffect, useState } from 'react';
 import { pct } from '../lib/format';
 
@@ -26,7 +27,7 @@ export const Loading = () => <div className="loading"><span className="spinner" 
 
 export const ErrorBox = ({ error, onRetry }: { error: Error; onRetry?: () => void }) => (
   <div className="empty card">
-    <p>⚠️ {error.message}</p>
+    <p><Icon name="warning" /> {error.message}</p>
     {onRetry && <button className="btn ghost" type="button" onClick={onRetry}>Reintentar</button>}
   </div>
 );

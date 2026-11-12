@@ -1,3 +1,4 @@
+import { Icon } from '../components/Icon';
 import { useState } from 'react';
 import { Link, NavLink, useParams } from 'react-router-dom';
 import { api } from '../api';
@@ -14,7 +15,7 @@ const TABS = [
   { id: 'teoria', label: 'Teoría' },
   { id: 'tarjetas', label: 'Flashcards' },
   { id: 'practica', label: 'Práctica' },
-  { id: 'drills', label: 'Drills ⏱' },
+  { id: 'drills', label: 'Drills' },
   { id: 'snippets', label: 'Snippets y atajos' },
 ] as const;
 
@@ -24,29 +25,36 @@ export function ChapterPage() {
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorBox error={error ?? new Error('Sin datos')} onRetry={reload} />;
   const ch = data.chapter;
+  const beginner = ch.track === 'csharp-basics';
 
   const counts: Record<string, number> = { tarjetas: ch.cards.length, practica: ch.questions.length, drills: ch.drills.length, snippets: ch.snippets.length + ch.shortcuts.length };
 
   return (
     <>
-      <nav className="crumbs small"><Link to="/temario">Temario</Link> / Capítulo {ch.number}</nav>
+      <nav className="crumbs small"><Link to="/temario">Temario</Link> / {beginner && <><Link to="/temario?track=csharp-basics">C# desde cero</Link> / </>}Capítulo {ch.number}</nav>
       <header className="page-head">
         <span className="eyebrow">Capítulo {ch.number} · {ch.level}</span>
         <h1>{ch.title}</h1>
         <p className="muted">{ch.summary}</p>
         <div className="head-progress"><ProgressBar value={ch.mastery} label="Dominio" /><span className="small muted">{ch.mastery}% dominio · {ch.seen}/{ch.total} vistos</span></div>
       </header>
+      {beginner && <aside className="card learning-start">
+        <strong>Aprende a tu ritmo</strong>
+        <p className="muted">Lee, ejecuta los ejemplos en tu equipo y abre Práctica para comprobar lo aprendido. Aquí no hay cuenta regresiva.</p>
+        {ch.number === 1 && <p className="small">Para preparar tu equipo: <a href="https://dotnet.microsoft.com/download/dotnet/10.0" target="_blank" rel="noreferrer">Descargar el SDK de .NET 10</a> · <a href="https://learn.microsoft.com/es-es/dotnet/core/tutorials/with-visual-studio-code" target="_blank" rel="noreferrer">Guía oficial de Microsoft</a></p>}
+        {tab === 'practica' && <p className="small">Responde sin apuro. Después de cada respuesta verás la explicación; puedes volver a Teoría cuando lo necesites.</p>}
+      </aside>}
       <div className="tabs" role="tablist">
         {TABS.filter((t) => t.id === 'teoria' || counts[t.id] > 0).map((t) => (
           <NavLink key={t.id} role="tab" className={() => `tab ${t.id === tab ? 'active' : ''}`} aria-selected={t.id === tab} to={`/capitulo/${ch.id}/${t.id}`}>
-            {t.label}{counts[t.id] ? <span className="count">{counts[t.id]}</span> : null}
+            {t.label}{t.id === 'drills' && <> <Icon name="timer" /></>}{counts[t.id] ? <span className="count">{counts[t.id]}</span> : null}
           </NavLink>
         ))}
       </div>
 
       {tab === 'teoria' && <Theory key={ch.id} ch={ch} />}
       {tab === 'tarjetas' && <StudySession key={`c-${ch.id}`} items={shuffle(ch.cards)} mode="study" title="Flashcards del capítulo" />}
-      {tab === 'practica' && <StudySession key={`q-${ch.id}`} items={shuffle(ch.questions)} mode="practice" title="Práctica del capítulo" />}
+      {tab === 'practica' && <StudySession key={`q-${ch.id}`} items={beginner ? ch.questions : shuffle(ch.questions)} mode="practice" title="Práctica del capítulo" />}
       {tab === 'drills' && <ChapterDrills ch={ch} />}
       {tab === 'snippets' && <ChapterSnippets ch={ch} />}
     </>
@@ -54,6 +62,7 @@ export function ChapterPage() {
 }
 
 function Theory({ ch }: { ch: ChapterDetail }) {
+  const beginner = ch.track === 'csharp-basics';
   const toast = useToast();
   const [read, setRead] = useState(() => new Set(ch.readSections));
 
@@ -72,31 +81,36 @@ function Theory({ ch }: { ch: ChapterDetail }) {
         {ch.sections.map((s) => (
           <li key={s.id}>
             <a href={`#sec-${s.id}`} onClick={(e) => { e.preventDefault(); document.getElementById(`sec-${s.id}`)?.scrollIntoView({ behavior: 'smooth' }); }}>{s.title}</a>
-            <span className={`check ${read.has(s.id) ? 'on' : ''}`} aria-label={read.has(s.id) ? 'leída' : 'pendiente'}>✓</span>
+            <span className={`check ${read.has(s.id) ? 'on' : ''}`} aria-label={read.has(s.id) ? 'leída' : 'pendiente'}><Icon name="check" /></span>
           </li>
         ))}
       </ol></div>
       {ch.sections.map((s, i) => (
         <section className="card lesson" id={`sec-${s.id}`} key={s.id}>
           <h2><span className="muted">{ch.number}.{i + 1}</span> {s.title}</h2>
-          <Markdown source={s.body} lang={ch.track === 'csharp' ? 'csharp' : 'text'} />
+          <Markdown source={s.body} lang={ch.track === 'csharp' || beginner ? 'csharp' : 'text'} />
           <div className="lesson-foot">
             <label className="toggle"><input type="checkbox" checked={read.has(s.id)} onChange={(e) => toggle(s.id, e.target.checked)} /> Marcar como leída</label>
           </div>
         </section>
       ))}
       <div className="card cta">
-        <div><h2>Ahora, recuerda sin mirar</h2><p className="muted">Leer no es aprender: el recuerdo activo y escribir código bajo tiempo consolidan la memoria.</p></div>
+        <div><h2>{beginner ? 'Comprueba lo que aprendiste' : 'Ahora, recuerda sin mirar'}</h2><p className="muted">{beginner ? 'Prueba los ejemplos y responde las preguntas sin cronómetro. Usa las flashcards para repasar después.' : 'Leer no es aprender: el recuerdo activo y escribir código bajo tiempo consolidan la memoria.'}</p></div>
         <div className="row">
-          <Link className="btn" to={`/capitulo/${ch.id}/tarjetas`}>Flashcards</Link>
-          <Link className="btn ghost" to={`/capitulo/${ch.id}/practica`}>Práctica</Link>
-          {ch.drills.length > 0 && <Link className="btn ghost" to={`/capitulo/${ch.id}/drills`}>Drills ⏱</Link>}
+          <Link className={beginner ? 'btn ghost' : 'btn'} to={`/capitulo/${ch.id}/tarjetas`}>Flashcards</Link>
+          <Link className={beginner ? 'btn' : 'btn ghost'} to={`/capitulo/${ch.id}/practica`}>{beginner ? 'Practicar sin cronómetro' : 'Práctica'}</Link>
+          {ch.drills.length > 0 && <Link className="btn ghost" to={`/capitulo/${ch.id}/drills`}>Drills <Icon name="timer" /></Link>}
         </div>
       </div>
       <nav className="pager">
-        {ch.prev ? <Link className="btn ghost" to={`/capitulo/${ch.prev}`}>← Capítulo anterior</Link> : <span />}
-        {ch.next && <Link className="btn ghost" to={`/capitulo/${ch.next}`}>Capítulo siguiente →</Link>}
+        {ch.prev ? <Link className="btn ghost" to={`/capitulo/${ch.prev}`}><Icon name="arrowLeft" /> Capítulo anterior</Link> : <span />}
+        {ch.next && <Link className="btn ghost" to={`/capitulo/${ch.next}`}>Capítulo siguiente <Icon name="arrowRight" /></Link>}
       </nav>
+      {beginner && !ch.next && <section className="card learning-start">
+        <h2>Tu siguiente paso</h2>
+        <p>Comprueba el inventario con los casos de prueba y vuelve a los conceptos que necesites reforzar. Los temas senior requieren más práctica; no hace falta saltar directamente a ellos.</p>
+        <div className="row"><Link className="btn" to="/repaso?track=csharp-basics">Repasar los fundamentos</Link><Link className="btn ghost" to="/temario?track=csharp-basics">Volver a la ruta inicial</Link></div>
+      </section>}
     </>
   );
 }
@@ -116,7 +130,7 @@ function ChapterDrills({ ch }: { ch: ChapterDetail }) {
       <div className="drill-list">
         {ch.drills.map((d) => (
           <article key={d.id} className="card drill-card">
-            <div className="tags"><LangBadge lang={d.lang} /><span className="tag">⏱ {formatMs(d.timeLimit * 1000)}</span><span className="tag">{d.checkCount} checks</span></div>
+            <div className="tags"><LangBadge lang={d.lang} /><span className="tag"><Icon name="timer" /> {formatMs(d.timeLimit * 1000)}</span><span className="tag">{d.checkCount} checks</span></div>
             <h3>{d.title}</h3>
             <button className="btn ghost small" type="button" onClick={() => setRun([d.id])}>Empezar</button>
           </article>
