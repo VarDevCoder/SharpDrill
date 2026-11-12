@@ -23,7 +23,7 @@ export function parseChapters(content, v) {
   return v ? String(v).split(',').filter((c) => content.chapterById.has(c)) : null;
 }
 
-/** Filtra capítulos por track (csharp, db, react, api) además de por lista explícita. */
+/** Filtra capítulos por track (csharp, db, react, api, english) además de por lista explícita. */
 export function chapterFilter(content, query) {
   let ids = parseChapters(content, query.chapter);
   if (query.track) {

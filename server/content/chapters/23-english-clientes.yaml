@@ -1,0 +1,455 @@
+id: ch23
+number: 23
+title: "Clientes y comercios: reuniones, alcance y malas noticias"
+level: "B2"
+track: english
+summary: "Llevar una llamada con un cliente, entender lo que necesita su negocio, explicar lo técnico sin jerga, negociar el alcance y hablar de precios, facturas y pagos."
+objectives:
+  - "Abrir, conducir y cerrar una reunión con un cliente."
+  - "Hacer preguntas que aclaren requisitos y confirmar lo entendido."
+  - "Traducir una decisión técnica a impacto de negocio."
+  - "Decir que no, renegociar el alcance y comunicar un retraso sin perder al cliente."
+  - "Manejar el vocabulario de presupuestos, facturas y cobros."
+
+sections:
+  - id: s1
+    title: "Conducir una llamada con un cliente"
+    body: |
+      Una llamada tiene tres momentos: **abrir**, **explorar** y **cerrar con próximos pasos**.
+
+      **Abrir** (un minuto de charla y la agenda):
+
+      ```text
+      Hi Laura, thanks for making the time. How's your week going?
+      Can you hear me okay? Great.
+      Just to set the agenda: I'd like to understand how your team handles orders today,
+      and then walk you through how we could help.
+      ```
+
+      **Explorar** (preguntas abiertas):
+
+      ```text
+      Could you walk me through how an order is processed today?
+      What's the biggest pain point for your team right now?
+      What does success look like for this project?
+      Who will be using this on a daily basis?
+      Is there a hard deadline we should be aware of?
+      ```
+
+      **Confirmar lo entendido** (la frase más rentable del capítulo):
+
+      ```text
+      Just to make sure I understand: you need the stock to update in real time
+      across all three stores. Is that right?
+      ```
+
+      **Cerrar**:
+
+      ```text
+      To recap: I'll send you a proposal by Thursday, and you'll share access to the current system.
+      Does that work for you?
+      Thanks for your time. Talk soon!
+      ```
+
+      Si no entendiste algo, pídelo sin vergüenza: `Sorry, could you say that again?` · `Could you speak a bit more slowly, please?` · `I didn't catch the last part.` · `What do you mean by "reconciliation"?`
+
+  - id: s2
+    title: "Explicar lo técnico a quien no es técnico"
+    body: |
+      Al dueño de un comercio no le importa el *cómo*: le importa **qué gana, qué arriesga y cuánto cuesta**.
+
+      | Dicho para un desarrollador | Dicho para un cliente |
+      |---|---|
+      | `We'll add a cache layer with Redis.` | `Pages will load about twice as fast, so fewer customers will leave.` |
+      | `We need to refactor the checkout module.` | `We need to clean up the checkout code so new payment methods take days, not weeks.` |
+      | `The API has no rate limiting.` | `Right now, a spike in traffic could take the store down.` |
+      | `We'll migrate to a managed database.` | `Backups and updates will be automatic, which lowers the risk of losing data.` |
+
+      Recursos:
+
+      - **In plain terms / Put simply**: `Put simply, the system is doing the same work twice.`
+      - **Analogía**: `Think of the cache as a notepad next to the phone: we don't look up the number every time.`
+      - **Impacto**: `This means…` · `As a result…` · `What this means for you is…`
+      - **Opciones con consecuencias**: `We have two options. Option A is cheaper but takes longer. Option B costs more but is ready before the holiday season.`
+
+      Evita siglas sin explicar. Si usas una, explícala la primera vez: `an API, which is how two systems talk to each other`.
+
+  - id: s3
+    title: "Decir que no, negociar el alcance y dar malas noticias"
+    body: |
+      En inglés profesional casi nunca se dice un `No` seco. Se **suaviza y se ofrece una alternativa**.
+
+      | Demasiado directo | Profesional |
+      |---|---|
+      | `No, that's impossible.` | `I'm afraid that's not feasible within the current timeline.` |
+      | `That's not in the contract.` | `That's outside the current scope, but we could add it as a second phase.` |
+      | `You are wrong.` | `I see it a bit differently. Here's my concern…` |
+      | `We can't do it.` | `We can do it by the deadline if we drop the reporting module.` |
+      | `It's late.` | `We're running about a week behind. Here's the plan to catch up.` |
+
+      **Malas noticias: pronto, con causa y con plan.**
+
+      ```text
+      I want to give you a heads-up: we're going to miss Friday's deadline.
+      The payment provider changed their API, which broke our integration.
+      We expect to be ready by next Wednesday.
+      In the meantime, the rest of the store is unaffected.
+      I apologize for the inconvenience.
+      ```
+
+      Suavizadores: `I'm afraid…` · `Unfortunately…` · `It looks like…` · `would`, `could`, `might` en vez de `will`, `can`, `must`.
+
+      Disculparse sin hundirse: `I apologize for the delay.` · `That was our mistake, and here is what we're doing to fix it.` No abuses de `sorry`.
+
+      Empujar con educación: `Just following up on my previous email.` · `Could you give me an update when you get a chance?` · `We need your feedback by Tuesday to stay on schedule.`
+
+  - id: s4
+    title: "Emails y mensajes que se responden"
+    body: |
+      Estructura: **asunto claro → contexto en una frase → lo que pides → fecha → cierre**.
+
+      ```text
+      Subject: Proposal for the inventory sync - feedback needed by Friday
+
+      Hi Laura,
+
+      Thanks again for your time on Monday. As discussed, I've attached the proposal
+      for the inventory sync.
+
+      Could you review it and let me know if the scope looks right? If we get your
+      approval by Friday, we can start on the 15th.
+
+      Please let me know if you have any questions.
+
+      Best regards,
+      Alex
+      ```
+
+      | Situación | Frase |
+      |---|---|
+      | Referirte a algo hablado | `As discussed,` · `Following up on our call,` |
+      | Adjuntar | `I've attached…` · `Please find attached…` (más formal) |
+      | Pedir | `Could you…?` · `Would you mind…?` · `I'd appreciate it if you could…` |
+      | Plazo | `by Friday` · `by the end of the week` · `at your earliest convenience` |
+      | Cerrar | `Please let me know if you have any questions.` · `I look forward to hearing from you.` |
+      | Despedida | `Best regards,` · `Kind regards,` · `Thanks,` (informal) |
+
+      Errores típicos: `I look forward to hear from you` → **hearing**. `I send you attached` → `I've attached`. `Dear Mr. John` → `Dear Mr. Smith` (apellido) o `Hi John`.
+
+  - id: s5
+    title: "Dinero y comercio: presupuestos, facturas y pagos"
+    body: |
+      **Vender tu trabajo**
+
+      | Término | Significado |
+      |---|---|
+      | `quote` / `estimate` | presupuesto |
+      | `proposal` | propuesta (alcance + precio + plazos) |
+      | `hourly rate` / `fixed price` | tarifa por hora / precio cerrado |
+      | `retainer` | iguala mensual por horas reservadas |
+      | `deposit` / `upfront payment` | anticipo |
+      | `invoice` | factura (verbo: `to invoice a client`) |
+      | `net 30` | a pagar en 30 días desde la factura |
+      | `overdue` | vencida |
+      | `out of scope` / `change request` | fuera de alcance / solicitud de cambio |
+
+      ```text
+      My rate is $45 per hour. For this project I'd suggest a fixed price of $3,600.
+      I require a 30% deposit upfront, with the balance due on delivery.
+      Invoice #204 is now 15 days overdue. Could you let me know when we can expect payment?
+      ```
+
+      **El mundo del comercio**
+
+      | Término | Significado |
+      |---|---|
+      | `merchant` / `retailer` | comerciante / minorista |
+      | `storefront` | la tienda (la parte visible) |
+      | `checkout` | proceso de pago |
+      | `POS (point of sale)` | punto de venta |
+      | `inventory` / `stock` | inventario / existencias |
+      | `SKU` | referencia de producto |
+      | `refund` / `chargeback` | reembolso / contracargo |
+      | `payment gateway` | pasarela de pago |
+      | `conversion rate` | tasa de conversión |
+      | `cart abandonment` | abandono del carrito |
+      | `wholesale` / `retail` | mayorista / minorista |
+
+      Cifras: en inglés el separador decimal es el punto y el de miles la coma: `$1,250.50`. Se dice *twelve fifty* o *one thousand two hundred and fifty dollars*. `15%` = *fifteen percent*.
+
+cards:
+  - id: c1
+    front: "La frase para confirmar que entendiste al cliente."
+    back: "`Just to make sure I understand: … Is that right?`"
+  - id: c2
+    front: "Pide que te expliquen el proceso actual paso a paso."
+    back: "`Could you walk me through how … works today?`"
+  - id: c3
+    front: "¿Cómo dices que algo está *fuera del alcance* ofreciendo alternativa?"
+    back: "`That's outside the current scope, but we could add it as a second phase.`"
+  - id: c4
+    front: "Las tres partes de una mala noticia bien dada."
+    back: "**Pronto** (`I want to give you a heads-up`), con **causa** y con **plan** (`We expect to be ready by…`)."
+  - id: c5
+    front: "`I look forward to ___ from you.`"
+    back: "`hearing` — después de `look forward to` va **-ing**."
+  - id: c6
+    front: "¿Qué son `invoice`, `quote` y `deposit`?"
+    back: "`invoice`: factura. `quote`: presupuesto. `deposit`: anticipo."
+  - id: c7
+    front: "¿Qué significa `net 30` en una factura? ¿Y `overdue`?"
+    back: "`net 30`: se paga en 30 días desde la emisión. `overdue`: el plazo ya venció."
+  - id: c8
+    front: "Traduce a lenguaje de cliente: `We'll add a cache layer.`"
+    back: "`Pages will load about twice as fast, so fewer customers will leave.` — habla de impacto, no de tecnología."
+  - id: c9
+    front: "No entendiste lo último que dijo el cliente. ¿Qué dices?"
+    back: "`Sorry, I didn't catch the last part. Could you say that again?`"
+  - id: c10
+    front: "Diferencia entre `refund` y `chargeback`."
+    back: "`refund`: el comercio devuelve el dinero. `chargeback`: el cliente reclama al banco y este revierte el cobro."
+  - id: c11
+    front: "Cierra una reunión resumiendo los próximos pasos."
+    back: "`To recap: I'll send the proposal by Thursday and you'll share access. Does that work for you?`"
+
+questions:
+  - id: q1
+    type: mcq
+    prompt: "El cliente pide una función que no estaba acordada. La mejor respuesta es…"
+    options:
+      - "No, that's not in the contract."
+      - "That's outside the current scope, but we could add it as a second phase."
+      - "It is impossible."
+      - "You didn't ask that before."
+    answer: 1
+    explanation: "Marca el límite del alcance y ofrece una vía para hacerlo."
+  - id: q2
+    type: fill
+    prompt: "Completa: `I look forward to ___ from you.`"
+    answer: ["hearing"]
+    explanation: "`look forward to` + verbo en -ing."
+  - id: q3
+    type: mcq
+    prompt: "¿Cuál es la mejor forma de comunicar un retraso?"
+    options:
+      - "Sorry sorry, we are very late, it is terrible."
+      - "The project is late."
+      - "I want to give you a heads-up: we'll miss Friday's deadline because the provider changed their API. We expect to be ready by Wednesday."
+      - "It was not our fault."
+    answer: 2
+    explanation: "Avisa pronto, da la causa y ofrece una nueva fecha."
+  - id: q4
+    type: mcq
+    prompt: "Explicas a la dueña de una tienda por qué añadir caché. ¿Cuál eliges?"
+    options:
+      - "We'll put Redis in front of the API to reduce the p95 latency."
+      - "Pages will load about twice as fast, so fewer customers will leave before paying."
+      - "The cache invalidation uses a TTL."
+      - "It is a best practice."
+    answer: 1
+    explanation: "Habla del impacto en su negocio, no de la tecnología."
+  - id: q5
+    type: fill
+    prompt: "Completa: `Invoice #204 is now 15 days ___.` (vencida)"
+    answer: ["overdue"]
+    explanation: "`overdue` = que ha pasado su fecha de pago."
+  - id: q6
+    type: tf
+    prompt: "`Dear Mr. John,` es un saludo correcto para un cliente llamado John Smith."
+    answer: false
+    explanation: "`Mr.` va con el apellido: `Dear Mr. Smith,`. Con el nombre: `Hi John,`."
+  - id: q7
+    type: mcq
+    prompt: "¿Qué frase confirma que entendiste el requisito?"
+    options:
+      - "OK."
+      - "I understand all."
+      - "Just to make sure I understand: you need stock to sync across all stores. Is that right?"
+      - "Yes yes, no problem."
+    answer: 2
+    explanation: "Repite el requisito con tus palabras y pide confirmación."
+  - id: q8
+    type: fill
+    prompt: "Completa: `I require a 30% ___ upfront, with the balance due on delivery.` (anticipo)"
+    answer: ["deposit"]
+    explanation: "`deposit` = anticipo. También se dice `upfront payment`."
+  - id: q9
+    type: mcq
+    prompt: "No estás de acuerdo con la idea del cliente. ¿Cómo empiezas?"
+    options:
+      - "You are wrong."
+      - "I am not agree."
+      - "I see it a bit differently. Here's my concern."
+      - "That is a bad idea."
+    answer: 2
+    explanation: "Discrepa del enfoque, no de la persona, y explica tu preocupación."
+  - id: q10
+    type: mcq
+    prompt: "¿Cómo se escribe correctamente mil doscientos cincuenta dólares con cincuenta centavos?"
+    options: ["$1.250,50", "$1,250.50", "1250,50$", "$1 250,50"]
+    answer: 1
+    explanation: "En inglés la coma separa miles y el punto los decimales; el símbolo va delante."
+
+drills:
+  - id: d1
+    lang: text
+    title: "Email de seguimiento tras una reunión"
+    timeLimit: 300
+    prompt: |
+      Escribe **en inglés** un email a **Laura** después de una llamada del lunes:
+
+      - Agradece su tiempo.
+      - Adjuntas la **propuesta** para la sincronización de inventario.
+      - Pides su opinión **antes del viernes** para poder empezar el día 15.
+      - Cierra de forma profesional.
+    solution: |
+      Subject: Proposal for the inventory sync
+
+      Hi Laura,
+
+      Thanks again for your time on Monday. As discussed, I've attached the proposal
+      for the inventory sync.
+
+      Could you review it and let me know if the scope looks right? If we get your
+      feedback by Friday, we can start on the 15th.
+
+      Please let me know if you have any questions.
+
+      Best regards,
+      Alex
+    checks:
+      - pattern: '^\s*(hi|hello|dear)\s+laura'
+        hint: "Saludo: `Hi Laura,`"
+      - pattern: 'thank(s| you)\s+(again\s+)?for\s+(your|the)\s+time|thank(s| you)\s+for\s+(taking|making|meeting|the\s+call)'
+        hint: "Agradece: `Thanks for your time`"
+      - pattern: '(I.ve|I\s+have|I.m|I\s+am)\s+attach(ed|ing)|please\s+find\s+attached|attached\s+(is|you.ll\s+find)'
+        hint: "Adjunto: `I've attached…` o `Please find attached…`"
+      - pattern: 'proposal'
+        hint: "`proposal`"
+      - pattern: '\bcould\s+you\b|\bwould\s+you\b|I.d\s+appreciate'
+        hint: "Pide con educación: `Could you…?`"
+      - pattern: '\bby\s+friday\b'
+        hint: "Fecha límite con `by Friday`"
+      - pattern: '(best|kind)\s+regards|sincerely|many\s+thanks|^thanks,'
+        hint: "Despedida: `Best regards,`"
+      - pattern: 'forward\s+to\s+hear\s|until\s+friday|I\s+send\s+you\s+attached'
+        forbid: true
+        hint: "`look forward to hearing`, `by Friday` y `I've attached` (no los calcos del español)"
+  - id: d2
+    lang: text
+    title: "Avisar de un retraso"
+    timeLimit: 240
+    prompt: |
+      Escribe **en inglés** un mensaje al cliente avisando de un retraso:
+
+      - No llegarán a la fecha del **viernes**.
+      - Causa: el proveedor de pagos cambió su API y rompió la integración.
+      - Nueva fecha: el **miércoles** siguiente.
+      - El resto de la tienda no está afectado. Discúlpate una sola vez.
+    solution: |
+      Hi Laura,
+
+      I want to give you a heads-up: we're going to miss Friday's deadline.
+      The payment provider changed their API, which broke our integration.
+      We expect to be ready by next Wednesday.
+      In the meantime, the rest of the store is unaffected.
+      I apologize for the inconvenience.
+    checks:
+      - pattern: 'heads-?\s?up|I\s+wanted?\s+to\s+let\s+you\s+know|I.m\s+afraid|unfortunately'
+        hint: "Avisa de entrada: `I want to give you a heads-up` / `Unfortunately…`"
+      - pattern: 'miss\s+(the\s+)?(friday|deadline)|(won.t|will\s+not|not\s+going\s+to)\s+(be\s+able\s+to\s+)?(make|meet|hit|deliver)|behind\s+schedule|delay'
+        hint: "El retraso: `we're going to miss Friday's deadline`"
+      - pattern: 'payment\s+(provider|gateway|processor)'
+        hint: "La causa: `the payment provider changed their API`"
+      - pattern: '\bby\s+(next\s+)?wednesday\b'
+        hint: "Nueva fecha con `by next Wednesday`"
+      - pattern: 'unaffected|not\s+affected|working\s+(normally|as\s+usual|fine)|no\s+impact'
+        hint: "Tranquiliza: `the rest of the store is unaffected`"
+      - pattern: 'apologi[sz]e|sorry\s+for'
+        hint: "Una disculpa: `I apologize for the inconvenience`"
+      - pattern: 'sorry[\s\S]*sorry[\s\S]*sorry|until\s+(next\s+)?wednesday|\bit\s+is\s+not\s+our\s+fault'
+        forbid: true
+        hint: "Una sola disculpa, `by Wednesday` (no *until*) y sin excusas"
+  - id: d3
+    lang: text
+    title: "Negociar el alcance sin decir que no"
+    timeLimit: 240
+    prompt: |
+      El cliente pide añadir un **programa de fidelidad** (`loyalty program`) a dos semanas de la entrega.
+      Responde **en inglés**:
+
+      - Te parece buena idea, pero está **fuera del alcance** actual.
+      - Hacerlo ahora pondría en riesgo la fecha de lanzamiento.
+      - Propón hacerlo en una **segunda fase** y enviarle un presupuesto aparte.
+    solution: |
+      That's a great idea, and I can see how it would help with repeat customers.
+      However, a loyalty program is outside the current scope, and adding it now
+      would put the launch date at risk.
+      I'd suggest we treat it as a second phase after launch.
+      I can send you a separate quote for it by Monday. Would that work for you?
+    checks:
+      - pattern: 'great\s+idea|good\s+idea|makes?\s+sense|I\s+(like|love|see)\b'
+        hint: "Valida primero: `That's a great idea`"
+      - pattern: '\b(however|but|that\s+said)\b'
+        hint: "Gira con `However,` / `That said,`"
+      - pattern: '(outside|out\s+of|beyond)\s+(the\s+)?(current\s+|agreed\s+|original\s+)?scope'
+        hint: "`outside the current scope`"
+      - pattern: 'at\s+risk|risk|jeopardi[sz]e|delay|push\s+back'
+        hint: "El riesgo: `would put the launch date at risk`"
+      - pattern: '(second|next|later|separate)\s+phase|phase\s+(two|2)|after\s+(the\s+)?launch'
+        hint: "Alternativa: `a second phase after launch`"
+      - pattern: '\b(quote|estimate|proposal)\b'
+        hint: "Ofrece un `quote` / `estimate` aparte"
+      - pattern: 'impossible|\bI\s+am\s+not\s+agree|not\s+in\s+the\s+contract'
+        forbid: true
+        hint: "Sin `impossible`, `I am not agree` ni `not in the contract`"
+
+snippets:
+  - id: sn1
+    lang: text
+    title: "Guion de llamada con un cliente"
+    code: |
+      Thanks for making the time. Can you hear me okay?
+      Just to set the agenda: first ..., and then ...
+      Could you walk me through how ... works today?
+      What's the biggest pain point right now?
+      Just to make sure I understand: ... Is that right?
+      To recap: I'll ... by <day>, and you'll ...
+      Does that work for you? Thanks for your time!
+  - id: sn2
+    lang: text
+    title: "Email de seguimiento"
+    code: |
+      Subject: <tema> - <lo que necesitas> by <fecha>
+
+      Hi <name>,
+
+      Thanks again for your time on <day>. As discussed, I've attached ...
+
+      Could you review it and let me know ...? If we get your feedback by <day>,
+      we can start on <date>.
+
+      Please let me know if you have any questions.
+
+      Best regards,
+      <your name>
+  - id: sn3
+    lang: text
+    title: "Decir que no con alternativa"
+    code: |
+      I'm afraid that's not feasible within the current timeline.
+      That's outside the current scope, but we could add it as a second phase.
+      We can do it by the deadline if we drop <feature>.
+      I see it a bit differently. Here's my concern: ...
+      Let me check with the team and get back to you by tomorrow.
+  - id: sn4
+    lang: text
+    title: "Presupuesto y cobro"
+    code: |
+      My rate is $<n> per hour.
+      For this project I'd suggest a fixed price of $<n>.
+      I require a 30% deposit upfront, with the balance due on delivery.
+      Payment terms: net 30.
+      Just a friendly reminder that invoice #<n> was due on <date>.
+      Invoice #<n> is now <n> days overdue. Could you let me know when we can expect payment?
+    note: "Primer recordatorio amable (`friendly reminder`); el segundo, directo y con fecha."

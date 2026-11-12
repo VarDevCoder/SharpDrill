@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
-import { keymap } from '@codemirror/view';
+import { EditorView, keymap } from '@codemirror/view';
 import { StreamLanguage } from '@codemirror/language';
 import { sql, PLSQL, StandardSQL } from '@codemirror/lang-sql';
 import { javascript } from '@codemirror/lang-javascript';
@@ -19,6 +19,8 @@ function languageFor(lang: string): Extension[] {
     case 'xml': return [xml()];
     case 'csharp': return [StreamLanguage.define(csharp)];
     case 'bash': return [StreamLanguage.define(shell)];
+    // Redacción en prosa (drills de inglés): sin gramática, pero con ajuste de línea
+    case 'text': return [EditorView.lineWrapping];
     default: return [];
   }
 }

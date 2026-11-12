@@ -433,6 +433,7 @@ th { background: var(--surface-2); font-weight: 600; }
 .track-db .track-icon, .track-icon.track-db { background: #c74634; }
 .track-react .track-icon, .track-icon.track-react { background: #0e8fb3; }
 .track-api .track-icon, .track-icon.track-api { background: #d9822b; }
+.track-english .track-icon, .track-icon.track-english { background: #1f9d6b; }
 .track-section { margin-bottom: 26px; scroll-margin-top: 80px; }
 .track-title { display: flex; gap: 12px; align-items: center; font-size: 1.3rem; margin-bottom: 14px; }
 .chapter-body h3 { font-size: 1.05rem; margin-bottom: .4em; }
@@ -442,6 +443,7 @@ th { background: var(--surface-2); font-weight: 600; }
 .lang-plsql, .lang-sql { box-shadow: inset 3px 0 0 #e0634f; }
 .lang-tsx, .lang-ts, .lang-js { box-shadow: inset 3px 0 0 #3bb5d8; }
 .lang-bash, .lang-xml { box-shadow: inset 3px 0 0 #f0a04b; }
+.lang-text { box-shadow: inset 3px 0 0 #2fbf85; }
 
 .drill-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; margin-bottom: 18px; }
 .drill-card { margin: 0; display: flex; flex-direction: column; }

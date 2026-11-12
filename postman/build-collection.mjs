@@ -110,7 +110,7 @@ const collection = {
         req('Capítulos y rutas', 'GET', '/api/chapters', {
           tests: js(
             'const json = pm.response.json();',
-            "pm.test('4 rutas de aprendizaje', () => pm.expect(json.tracks.map(t => t.id)).to.have.members(['csharp', 'db', 'react', 'api']));",
+            "pm.test('5 rutas de aprendizaje', () => pm.expect(json.tracks.map(t => t.id)).to.have.members(['csharp', 'db', 'react', 'api', 'english']));",
             "pm.test('Hay capítulos de PL/SQL', () => pm.expect(json.chapters.some(c => c.track === 'db')).to.be.true);",
           ),
         }),

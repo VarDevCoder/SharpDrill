@@ -46,6 +46,7 @@ export function LoginPage() {
           <li><strong>Oracle</strong>: SQL avanzado y PL/SQL bajo reloj</li>
           <li><strong>React + TypeScript</strong> y <strong>Next.js</strong></li>
           <li><strong>APIs</strong>: curl, Bearer/JWT, Postman/Newman y Azure APIM</li>
+          <li><strong>Inglés profesional</strong>: standups, clientes, entrevistas y negociación</li>
           <li>Snippets y atajos de teclado para ir más rápido</li>
         </ul>
       </div>

@@ -8,8 +8,9 @@ Entrenamiento **senior** con **repaso activo** y **drills de código cronometrad
 | **Bases de datos y PL/SQL** (3) | SQL avanzado en Oracle (índices, planes, MVCC, analíticas, MERGE) · PL/SQL esencial · PL/SQL avanzado (BULK COLLECT/FORALL, SQL dinámico, triggers, autónomas) |
 | **React y Next.js** (2) | React con TypeScript (TSX) · Next.js App Router |
 | **APIs** (3) | HTTP, curl y Bearer/JWT/OAuth · Postman y Newman · Azure API Management |
+| **Inglés profesional** (4) | Día a día del equipo (standups, PRs, code review, bugs) · Explicar tu trabajo técnico (arquitectura, trade-offs, incidentes) · Clientes y comercios (reuniones, alcance, facturas y pagos) · Venderte como full-stack (pitch, STAR, entrevistas, negociación) |
 
-**Contenido:** 20 capítulos, 80 secciones de teoría, 168 flashcards, 160 preguntas, **36 drills de código cronometrados** (C#, PL/SQL, SQL, React TSX, TypeScript, curl, scripts de Postman y políticas XML de APIM), **61 snippets** y **74 atajos de teclado** (Visual Studio, Rider, VS Code, SQL Developer, SQLcl, Postman, Chrome DevTools y bash).
+**Contenido:** 24 capítulos, 99 secciones de teoría, 210 flashcards, 198 preguntas, **48 drills cronometrados** (C#, PL/SQL, SQL, React TSX, TypeScript, curl, scripts de Postman, políticas XML de APIM y redacción profesional en inglés), **78 snippets** y **74 atajos de teclado** (Visual Studio, Rider, VS Code, SQL Developer, SQLcl, Postman, Chrome DevTools y bash).
 
 ## Cómo se estudia
 
@@ -161,7 +162,7 @@ Todas las rutas requieren sesión (cookie o `Authorization: Bearer`), salvo `reg
 
 ## Añadir contenido
 
-Cada capítulo es un YAML en `server/content/chapters/` con `track` (`csharp` | `db` | `react` | `api`), `sections`, `cards`, `questions` y, opcionalmente, `drills`, `snippets` y `shortcuts`:
+Cada capítulo es un YAML en `server/content/chapters/` con `track` (`csharp` | `db` | `react` | `api` | `english`), `sections`, `cards`, `questions` y, opcionalmente, `drills`, `snippets` y `shortcuts`:
 
 ```yaml
 drills:

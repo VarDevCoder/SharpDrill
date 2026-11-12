@@ -17,6 +17,7 @@ const LANGS = [
   { id: 'bash', label: 'Bash / curl' },
   { id: 'js', label: 'Postman (JS)' },
   { id: 'xml', label: 'APIM (XML)' },
+  { id: 'text', label: 'Inglés (redacción)' },
 ];
 
 export function DrillsPage() {
@@ -44,7 +45,7 @@ export function DrillsPage() {
     <>
       <header className="page-head">
         <h1>Drills de código ⏱</h1>
-        <p className="muted">Escribe código real contra el reloj: PL/SQL, C#, React/TSX, curl, Postman y políticas de APIM.
+        <p className="muted">Escribe contra el reloj: PL/SQL, C#, React/TSX, curl, Postman, políticas de APIM y redacción profesional en inglés.
           El servidor mide el tiempo y verifica los puntos clave; después comparas con la solución de referencia.</p>
       </header>
       <form className="card filters" onSubmit={(e) => { e.preventDefault(); startSession(); }}>

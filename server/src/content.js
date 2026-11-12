@@ -11,6 +11,7 @@ export const TRACKS = {
   db: { id: 'db', title: 'Bases de datos y PL/SQL', order: 2 },
   react: { id: 'react', title: 'React y Next.js', order: 3 },
   api: { id: 'api', title: 'APIs: HTTP, curl, Postman y APIM', order: 4 },
+  english: { id: 'english', title: 'Inglés profesional para desarrolladores', order: 5 },
 };
 export const LANGS = new Set(['csharp', 'plsql', 'sql', 'tsx', 'ts', 'js', 'bash', 'json', 'xml', 'http', 'dockerfile', 'text']);
 const QUESTION_TYPES = new Set(['mcq', 'tf', 'fill']);

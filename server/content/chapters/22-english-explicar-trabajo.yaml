@@ -1,0 +1,396 @@
+id: ch22
+number: 22
+title: "Explicar tu trabajo técnico en inglés"
+level: "B2"
+track: english
+summary: "Describir una arquitectura full-stack, justificar decisiones y trade-offs, dar estimaciones y contar un incidente sin perderte."
+objectives:
+  - "Recorrer en voz alta la arquitectura de una aplicación full-stack."
+  - "Justificar una decisión técnica con sus ventajas y su coste."
+  - "Dar estimaciones y estados de avance con el grado justo de certeza."
+  - "Resumir un incidente: qué pasó, causa raíz, solución y prevención."
+
+sections:
+  - id: s1
+    title: "Describir una arquitectura de punta a punta"
+    body: |
+      Sigue el camino de una petición: **de fuera hacia dentro**. Usa presente simple y verbos precisos.
+
+      ```text
+      The frontend is a React single-page application written in TypeScript.
+      It talks to a REST API built with ASP.NET Core.
+      The API handles authentication, validates the input and applies the business rules.
+      Data is stored in an Oracle database, and the heavy logic lives in PL/SQL packages.
+      The whole thing is deployed behind an API gateway, which takes care of rate limiting.
+      ```
+
+      Verbos que necesitas:
+
+      | Verbo | Uso | Ejemplo |
+      |---|---|---|
+      | `handle` | encargarse de | `The API handles authentication.` |
+      | `expose` | publicar | `The service exposes a REST endpoint.` |
+      | `consume` | usar un servicio | `The app consumes the payments API.` |
+      | `rely on` / `depend on` | depender de | `It relies on Redis for caching.` |
+      | `be responsible for` | ser responsable de | `This layer is responsible for validation.` |
+      | `sit behind` / `in front of` | posición | `The API sits behind a load balancer.` |
+      | `talk to` | comunicarse | `The frontend talks to the backend over HTTPS.` |
+      | `take care of` | ocuparse de | `The gateway takes care of throttling.` |
+      | `trigger` | disparar | `A new order triggers a notification.` |
+
+      Conectores para ordenar el recorrido: `First,` · `Then,` · `After that,` · `Once the user is authenticated,` · `On the backend,` · `Under the hood,` · `Finally,`.
+
+      Cuando dibujes o compartas pantalla: `As you can see here…` · `Let me walk you through the flow.` · `Let's zoom in on this part.`
+
+  - id: s2
+    title: "Justificar decisiones y trade-offs"
+    body: |
+      Un senior no dice *es mejor*; dice **qué gana y qué paga**.
+
+      ```text
+      We went with PostgreSQL over MongoDB because our data is highly relational.
+      The trade-off is that schema changes require migrations.
+      We chose server-side rendering to improve SEO, at the cost of a more complex deployment.
+      It was a deliberate decision: we prioritized time to market over flexibility.
+      In hindsight, I would have added caching earlier.
+      ```
+
+      Estructuras clave:
+
+      - `We went with X over Y because…` — elegimos X en vez de Y.
+      - `The trade-off is (that)…` — lo que se sacrifica.
+      - `at the cost of…` / `at the expense of…` — a costa de.
+      - `X is a better fit for…` — encaja mejor.
+      - `It boils down to…` — se reduce a.
+      - `On the one hand… On the other hand…`
+      - `The main downside / drawback is…`
+
+      **Ser honesto con lo que no sabes** (suena mucho mejor que inventar):
+
+      ```text
+      As far as I know, it supports that, but I'd need to double-check.
+      I'm not sure off the top of my head. Let me get back to you on that.
+      I haven't used it in production, but my understanding is that…
+      ```
+
+  - id: s3
+    title: "Estimaciones, avance y riesgos"
+    body: |
+      Una estimación no es una promesa: marca el grado de certeza.
+
+      | Certeza | Frase |
+      |---|---|
+      | Aproximada | `It should take roughly three days.` · `My ballpark estimate is two weeks.` |
+      | Con condición | `Assuming the API is ready, we can ship by Friday.` |
+      | Con rango | `Somewhere between three and five days.` |
+      | Firme | `I can commit to Thursday.` |
+
+      Estado del trabajo:
+
+      ```text
+      We're on track to deliver by the end of the sprint.
+      We're slightly behind schedule because of the migration issue.
+      The release slipped by two days.
+      We're about 80% done; the remaining work is mostly testing.
+      I want to flag a risk early: the third-party API is still unstable.
+      ```
+
+      Vocabulario: **on track** (según lo previsto), **behind / ahead of schedule** (atrasado / adelantado), **slip** (retrasarse), **scope creep** (el alcance crece sin control), **ETA** (hora o fecha estimada), **deadline** (fecha límite), **milestone** (hito), **bottleneck** (cuello de botella).
+
+      Ojo: `We will finish it until Friday` es incorrecto → `We will finish it by Friday`.
+
+  - id: s4
+    title: "Contar un incidente (postmortem)"
+    body: |
+      Estructura: **qué pasó → impacto → causa raíz → solución → prevención**. La cronología va en past simple.
+
+      ```text
+      On Tuesday at 14:05 UTC, checkout started failing for all users.
+      The outage lasted 40 minutes and affected roughly 1,200 orders.
+      The root cause was a database migration that locked the orders table.
+      We rolled back the migration and service was restored at 14:45.
+      To prevent this from happening again, we will run migrations outside peak hours
+      and add an alert for long-running locks.
+      ```
+
+      Vocabulario: **outage** (caída), **downtime** (tiempo de caída), **root cause** (causa raíz), **roll back** (revertir), **mitigate** (mitigar), **hotfix** (parche urgente), **degraded performance** (rendimiento degradado), **on call** (de guardia), **follow-up actions** (acciones posteriores).
+
+      Los postmortems son **blameless**: se usa la voz pasiva o el sujeto *we* para no señalar a nadie.
+
+      | Culpa a alguien | Blameless |
+      |---|---|
+      | `John deleted the index.` | `The index was deleted during the cleanup.` |
+      | `The DBA forgot the backup.` | `The backup step was skipped.` |
+
+  - id: s5
+    title: "Pronunciación de términos técnicos"
+    body: |
+      Decirlos mal en una llamada te resta credibilidad aunque sepas mucho. Los que más se fallan:
+
+      | Palabra | Se pronuncia parecido a | No |
+      |---|---|---|
+      | `cache` | *cash* | *ca-ché* |
+      | `queue` | *kiu* | *kué* |
+      | `schema` | *skí-ma* | *es-ché-ma* |
+      | `query` | *kuí-ri* | *kué-ri* |
+      | `height` | *jait* | *jeit* |
+      | `width` | *uidz* | *uaid* |
+      | `async` | *éi-sink* | *a-sink* |
+      | `null` | *nal* | *nul* |
+      | `suite` | *suit* (como *sweet*) | *sut* |
+      | `daemon` | *dí-mon* | *dá-emon* |
+      | `archive` | *ár-kaiv* | *ar-chiv* |
+      | `deprecated` | *dé-pre-kei-tid* | (no confundir con `depreciated`) |
+      | `variable` | *vé-ri-a-bol* | *va-ri-á-bol* |
+      | `SQL` | *es-kiu-el* o *sí-kuel* | ambas son válidas |
+
+      Acento en la sílaba correcta: `PA-ra-me-ter` no, es **pa-RA-me-ter**; **de-VE-lop-er**; **AR-chi-tec-ture** (*ár-ki-tek-cher*); **hie-RAR-chy** no, es **HIE-rar-chy** (*jái-rar-ki*).
+
+      La `s` inicial no lleva *e* delante: `staging`, `script`, `string`, `schema` — no *estaging*, *escript*.
+
+cards:
+  - id: c1
+    front: "Completa la estructura para comparar dos opciones: `We ___ ___ X ___ Y because…`"
+    back: "`We went with X over Y because…` — elegimos X en lugar de Y."
+  - id: c2
+    front: "¿Cómo dices *a costa de*?"
+    back: "`at the cost of…` o `at the expense of…`: `It's faster, at the cost of higher memory usage.`"
+  - id: c3
+    front: "Tres formas de dar una estimación aproximada."
+    back: "`roughly three days` · `a ballpark estimate of two weeks` · `somewhere between three and five days`."
+  - id: c4
+    front: "¿Qué significan `on track`, `behind schedule` y `slip`?"
+    back: "`on track`: según lo previsto. `behind schedule`: con retraso. `slip`: retrasarse (`The release slipped by two days`)."
+  - id: c5
+    front: "Las cinco partes de un resumen de incidente."
+    back: "Qué pasó → impacto → **root cause** → solución (`we rolled back…`) → prevención (`to prevent this from happening again…`)."
+  - id: c6
+    front: "¿Qué es un postmortem *blameless* y cómo se nota en el idioma?"
+    back: "No busca culpables. Se usa voz pasiva o *we*: `The index was deleted`, no `John deleted the index`."
+  - id: c7
+    front: "No sabes la respuesta en una reunión. ¿Qué dices?"
+    back: "`I'm not sure off the top of my head. Let me get back to you on that.` o `I'd need to double-check.`"
+  - id: c8
+    front: "¿Cómo se pronuncian `cache`, `queue` y `schema`?"
+    back: "*cash*, *kiu* y *skí-ma*."
+  - id: c9
+    front: "Verbos para describir componentes: *se encarga de*, *publica*, *depende de*."
+    back: "`handles` / `takes care of`, `exposes`, `relies on` / `depends on`."
+  - id: c10
+    front: "¿Qué es `scope creep`?"
+    back: "El alcance del proyecto crece poco a poco sin ajustar plazos ni presupuesto."
+
+questions:
+  - id: q1
+    type: mcq
+    prompt: "¿Cuál describe mejor una decisión técnica con su coste?"
+    options:
+      - "We used Redis because it is the best."
+      - "We went with Redis for caching, at the cost of one more service to maintain."
+      - "Redis is more better than Memcached."
+      - "We decided Redis since two years."
+    answer: 1
+    explanation: "Nombra la decisión, el motivo y lo que se paga a cambio."
+  - id: q2
+    type: fill
+    prompt: "Completa: `The API relies ___ Redis for caching.`"
+    answer: ["on"]
+    explanation: "`rely on`, igual que `depend on`."
+  - id: q3
+    type: mcq
+    prompt: "Vas con un pequeño retraso. ¿Cuál es natural?"
+    options:
+      - "We are late of the schedule."
+      - "We have delay."
+      - "We're slightly behind schedule."
+      - "We are retarded two days."
+    answer: 2
+    explanation: "`behind schedule` es la expresión fija. La última opción es ofensiva en inglés."
+  - id: q4
+    type: fill
+    prompt: "Completa: `The root ___ was a misconfigured firewall rule.`"
+    answer: ["cause"]
+    explanation: "`root cause` = causa raíz."
+  - id: q5
+    type: tf
+    prompt: "`We will finish the migration until Friday` expresa correctamente una fecha límite."
+    answer: false
+    explanation: "Para una fecha límite se usa `by Friday`. `until` indica duración continua."
+  - id: q6
+    type: mcq
+    prompt: "En un postmortem blameless, ¿cuál es la frase adecuada?"
+    options:
+      - "Maria broke production."
+      - "The config change was deployed without a review."
+      - "It was the fault of the DevOps team."
+      - "Somebody was careless."
+    answer: 1
+    explanation: "Describe el hecho en pasiva, sin señalar a una persona."
+  - id: q7
+    type: mcq
+    prompt: "No recuerdas un dato durante una demo. La mejor respuesta es…"
+    options:
+      - "I don't know."
+      - "I'm not sure off the top of my head. Let me get back to you on that."
+      - "Maybe yes, maybe no."
+      - "This is not my problem."
+    answer: 1
+    explanation: "Reconoce el límite y comprométete a responder después."
+  - id: q8
+    type: fill
+    prompt: "Completa el phrasal verb: `We rolled ___ the migration and service was restored.`"
+    answer: ["back"]
+    explanation: "`roll back` = revertir un cambio."
+  - id: q9
+    type: mcq
+    prompt: "¿Cómo se pronuncia `queue`?"
+    options: ["kué", "kiu", "kueue", "ki-u-i"]
+    answer: 1
+    explanation: "Suena como la letra Q: *kiu*."
+
+drills:
+  - id: d1
+    lang: text
+    title: "Explica tu arquitectura en 5 frases"
+    timeLimit: 300
+    prompt: |
+      Describe **en inglés** esta arquitectura, siguiendo el camino de una petición:
+
+      - Frontend: SPA en **React + TypeScript**.
+      - Backend: **API REST** en ASP.NET Core que se encarga de la autenticación y las reglas de negocio.
+      - Datos: base de datos **Oracle**, con la lógica pesada en paquetes PL/SQL.
+      - Todo desplegado detrás de un **API gateway**.
+    solution: |
+      The frontend is a React single-page application written in TypeScript.
+      It talks to a REST API built with ASP.NET Core.
+      The API handles authentication and applies the business rules.
+      Data is stored in an Oracle database, and the heavy logic lives in PL/SQL packages.
+      Everything is deployed behind an API gateway.
+    checks:
+      - pattern: 'the\s+front.?end\s+is\b'
+        hint: "Empieza por fuera: `The frontend is…`"
+      - pattern: 'react'
+        hint: "Menciona React"
+      - pattern: '\b(talks?\s+to|calls?|consumes?|communicates?\s+with|sends?\s+requests?\s+to)\b'
+        hint: "Conecta las capas: `talks to`, `calls`, `consumes`"
+      - pattern: 'REST\s+API'
+        hint: "`REST API`"
+      - pattern: '\b(handles?|takes?\s+care\s+of|is\s+responsible\s+for)\b'
+        hint: "Di de qué se encarga la API: `handles` / `is responsible for`"
+      - pattern: 'authentication'
+        hint: "`authentication`"
+      - pattern: '(is|are)\s+stored\s+in|stores?\s+(the\s+)?data|persist'
+        hint: "Dónde viven los datos: `Data is stored in…`"
+      - pattern: '\bbehind\b'
+        hint: "`deployed behind an API gateway`"
+      - pattern: 'depends?\s+of|is\s+compos(ed|e)\s+by'
+        forbid: true
+        hint: "`depends on` (no *of*) y `is composed of` (no *by*)"
+  - id: d2
+    lang: text
+    title: "Justifica una decisión técnica"
+    timeLimit: 240
+    prompt: |
+      Un cliente pregunta por qué usaste **PostgreSQL** y no **MongoDB**. Responde **en inglés** en 3 o 4 frases:
+
+      - Motivo: los datos son muy relacionales (pedidos, clientes, facturas).
+      - Coste: cada cambio de esquema necesita una migración.
+      - Remata con que, para este proyecto, encaja mejor.
+    solution: |
+      We went with PostgreSQL over MongoDB because our data is highly relational:
+      orders, customers and invoices all reference each other.
+      The trade-off is that every schema change requires a migration.
+      For this project, a relational database is simply a better fit.
+    checks:
+      - pattern: '\b(went\s+with|chose|picked|decided\s+(on|to\s+use)|opted\s+for)\b'
+        hint: "`We went with…` / `We chose…`"
+      - pattern: '\b(over|instead\s+of|rather\s+than)\b'
+        hint: "Compara: `over MongoDB` / `instead of MongoDB`"
+      - pattern: '\bbecause\b|\bsince\b'
+        hint: "Da el motivo con `because`"
+      - pattern: 'relational'
+        hint: "`relational`"
+      - pattern: 'trade-?\s?off|downside|drawback|at\s+the\s+(cost|expense)\s+of'
+        hint: "Nombra el coste: `The trade-off is…` / `The downside is…`"
+      - pattern: 'migration'
+        hint: "`migration`"
+      - pattern: 'better\s+fit|fits?\s+better|makes?\s+more\s+sense|more\s+suitable'
+        hint: "Remata: `a better fit` / `makes more sense`"
+      - pattern: 'more\s+better|is\s+the\s+best\s*\.'
+        forbid: true
+        hint: "Evita `more better` y los absolutos sin justificar (`is the best.`)"
+  - id: d3
+    lang: text
+    title: "Resumen de un incidente"
+    timeLimit: 300
+    prompt: |
+      Escribe **en inglés** el resumen de este incidente para el cliente (blameless, en past simple):
+
+      - El martes el checkout falló durante **40 minutos**.
+      - Causa raíz: una migración de base de datos bloqueó la tabla de pedidos.
+      - Solución: se revirtió la migración.
+      - Prevención: ejecutar las migraciones fuera de las horas pico.
+    solution: |
+      On Tuesday, checkout was unavailable for 40 minutes.
+      The root cause was a database migration that locked the orders table.
+      We rolled back the migration and service was restored.
+      To prevent this from happening again, we will run migrations outside peak hours.
+    checks:
+      - pattern: '\bon\s+tuesday\b'
+        hint: "Los días van con `on`: `On Tuesday`"
+      - pattern: '40\s*-?\s*minutes?'
+        hint: "Duración: `for 40 minutes`"
+      - pattern: 'root\s+cause'
+        hint: "`The root cause was…`"
+      - pattern: 'migration'
+        hint: "`migration`"
+      - pattern: 'roll(ed)?\s+back|reverted'
+        hint: "`We rolled back…` / `We reverted…`"
+      - pattern: 'to\s+(prevent|avoid)\s+(this|it|a\s+recurrence|similar)|going\s+forward|from\s+now\s+on'
+        hint: "Prevención: `To prevent this from happening again…`"
+      - pattern: 'peak\s+hours|off-?peak|business\s+hours'
+        hint: "`outside peak hours`"
+      - pattern: '\bin\s+tuesday\b|\bthe\s+tuesday\b|fault\s+of'
+        forbid: true
+        hint: "`On Tuesday` (no *in* / *the*) y sin buscar culpables (`fault of`)"
+
+snippets:
+  - id: sn1
+    lang: text
+    title: "Recorrido de arquitectura (plantilla)"
+    code: |
+      The frontend is a <tech> application.
+      It talks to a <REST / GraphQL> API built with <tech>.
+      The API handles <auth / validation / business rules>.
+      Data is stored in <database>.
+      <Async work> is handled by <queue / worker>.
+      Everything is deployed on <platform> behind <gateway / load balancer>.
+  - id: sn2
+    lang: text
+    title: "Decisiones y trade-offs"
+    code: |
+      We went with X over Y because ...
+      The trade-off is that ...
+      It's faster, at the cost of ...
+      The main downside is ...
+      X is a better fit for this use case.
+      In hindsight, I would have ...
+  - id: sn3
+    lang: text
+    title: "Estimaciones y avance"
+    code: |
+      It should take roughly three days.
+      My ballpark estimate is two weeks.
+      Assuming the API is ready, we can ship by Friday.
+      We're on track / slightly behind schedule.
+      I want to flag a risk early: ...
+      Let me get back to you on that by tomorrow.
+  - id: sn4
+    lang: text
+    title: "Resumen de incidente"
+    code: |
+      On <day> at <time>, <what happened>.
+      The outage lasted <duration> and affected <impact>.
+      The root cause was ...
+      We <rolled back / deployed a hotfix> and service was restored at <time>.
+      To prevent this from happening again, we will ...

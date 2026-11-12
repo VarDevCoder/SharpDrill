@@ -27,4 +27,4 @@ export const shuffle = <T,>(a: T[]): T[] => {
   return arr;
 };
 
-export const TRACK_ICON: Record<string, string> = { csharp: 'C#', db: 'SQL', react: '⚛', api: 'API' };
+export const TRACK_ICON: Record<string, string> = { csharp: 'C#', db: 'SQL', react: '⚛', api: 'API', english: 'EN' };

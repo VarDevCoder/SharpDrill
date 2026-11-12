@@ -72,6 +72,6 @@ export function useTheme() {
 }
 
 export function LangBadge({ lang }: { lang: string }) {
-  const label: Record<string, string> = { csharp: 'C#', plsql: 'PL/SQL', sql: 'SQL', tsx: 'React TSX', ts: 'TypeScript', js: 'JavaScript', bash: 'Bash / curl', xml: 'XML (APIM)' };
+  const label: Record<string, string> = { csharp: 'C#', plsql: 'PL/SQL', sql: 'SQL', tsx: 'React TSX', ts: 'TypeScript', js: 'JavaScript', bash: 'Bash / curl', xml: 'XML (APIM)', text: 'Inglés · redacción' };
   return <span className={`tag lang lang-${lang}`}>{label[lang] ?? lang}</span>;
 }

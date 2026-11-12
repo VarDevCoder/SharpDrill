@@ -1,0 +1,472 @@
+id: ch24
+number: 24
+title: "Venderte como full-stack: pitch, entrevistas y negociación"
+level: "B2 → C1"
+track: english
+summary: "Presentarte en un minuto, contar tus logros con el método STAR, pensar en voz alta en una entrevista técnica y negociar salario o tarifa sin regalar tu trabajo."
+objectives:
+  - "Responder a `Tell me about yourself` en 60 segundos."
+  - "Contar un logro con el método STAR y con cifras."
+  - "Comunicar tu razonamiento durante una prueba técnica, incluso cuando te atascas."
+  - "Negociar salario o tarifa y redactar una propuesta freelance."
+  - "Escribir líneas de CV y de LinkedIn orientadas a resultados."
+
+sections:
+  - id: s1
+    title: "Tu pitch: `Tell me about yourself`"
+    body: |
+      No es tu biografía. Es **presente → pasado → futuro** en un minuto.
+
+      ```text
+      I'm a full-stack developer with five years of experience building web applications
+      with C#, .NET and React.
+
+      Currently, I work at a fintech company, where I own the payments module
+      end to end: from the React UI to the PL/SQL packages in Oracle.
+
+      Before that, I spent two years at an agency, where I shipped e-commerce sites
+      for small retailers.
+
+      I'm now looking for a role where I can work directly with clients
+      and have more impact on product decisions.
+      ```
+
+      | Calco del español | Correcto |
+      |---|---|
+      | `I have 5 years working with .NET` | `I have five years of experience with .NET` |
+      | `I work with React since 3 years` | `I've been working with React for three years` |
+      | `I am developer` | `I am a developer` (con artículo) |
+      | `I studied Informatic Engineering` | `I studied Computer Science` / `Software Engineering` |
+      | `I have knowledges in SQL` | `I'm proficient in SQL` / `I have a solid background in SQL` |
+      | `I am responsible of the API` | `I'm responsible for the API` |
+
+      Niveles sin exagerar: `I'm proficient in…` (lo domino) · `I'm comfortable with…` (lo uso con soltura) · `I have working knowledge of…` (me defiendo) · `I've had some exposure to…` (lo he tocado).
+
+      **Full-stack** se vende diciendo que cubres todo el recorrido: `end to end`, `from the database to the UI`, `across the whole stack`.
+
+  - id: s2
+    title: "Contar logros con el método STAR"
+    body: |
+      Las preguntas de comportamiento empiezan con `Tell me about a time when…`. Se responden con **STAR**:
+
+      - **S**ituation — el contexto, en una frase.
+      - **T**ask — cuál era tu responsabilidad.
+      - **A**ction — lo que hiciste **tú** (`I`, no `we`).
+      - **R**esult — el resultado, **con cifras**.
+
+      ```text
+      Situation: Our checkout page was taking over eight seconds to load, and we were losing sales.
+      Task: I was asked to find the bottleneck and fix it within one sprint.
+      Action: I profiled the queries, added two missing indexes and introduced pagination on the API.
+      Result: As a result, load time dropped from eight seconds to under one,
+      and the conversion rate went up by 12%.
+      ```
+
+      Verbos de logro (en past simple): `built`, `led`, `shipped`, `designed`, `migrated`, `reduced`, `improved`, `automated`, `refactored`, `owned`, `mentored`, `launched`.
+
+      Cifras: `reduced X by 40%` · `from 8 seconds to under 1` · `cut costs by half` · `saved 10 hours a week` · `served 50,000 users`.
+
+      Preguntas frecuentes y su intención:
+
+      | Pregunta | Qué quieren saber |
+      |---|---|
+      | `Tell me about a time you disagreed with a teammate.` | Cómo manejas el conflicto |
+      | `Tell me about a mistake you made.` | Si asumes errores y aprendes |
+      | `What's your biggest weakness?` | Autoconocimiento; da una real y qué haces al respecto |
+      | `Why do you want to leave your current job?` | Nunca hables mal del empleador actual |
+
+  - id: s3
+    title: "Entrevista técnica: piensa en voz alta"
+    body: |
+      Te evalúan **cómo razonas**, no solo si llegas. El silencio es tu enemigo.
+
+      **Antes de escribir código, aclara**:
+
+      ```text
+      Before I start, let me make sure I understand the problem.
+      Can I assume the input is always sorted?
+      What should happen if the list is empty?
+      Are we optimizing for speed or for memory?
+      ```
+
+      **Mientras trabajas**:
+
+      ```text
+      Let me think out loud for a moment.
+      My first idea is a brute-force approach, which would be O(n squared).
+      We can do better with a hash map, which brings it down to O(n).
+      Let me walk through an example to check it.
+      I think there's an edge case here: what if there are duplicates?
+      ```
+
+      **Cuando te atascas o no sabes**:
+
+      ```text
+      I'm not familiar with that library, but here's how I would approach it.
+      I'm stuck on this part. Could you give me a hint?
+      Good question. Let me take a moment to think about it.
+      I haven't used it in production, but my understanding is that…
+      ```
+
+      **Al terminar**: `To sum up, the solution runs in linear time and uses constant extra space.` · `If I had more time, I would add tests for the edge cases.`
+
+      Cómo se leen las cosas: `O(n)` = *oh of en* · `O(n²)` = *oh of en squared* · `O(log n)` = *oh of log en* · `==` = *double equals* · `!=` = *not equal* · `=>` = *arrow* · `[]` = *square brackets* · `{}` = *curly braces* · `()` = *parentheses* · `_` = *underscore* · `#` = *hash* · `/` = *slash* · `\` = *backslash*.
+
+  - id: s4
+    title: "Negociar salario o tarifa"
+    body: |
+      Reglas: **no des la primera cifra si puedes evitarlo**, da un **rango** basado en el mercado y **nunca aceptes en el momento**.
+
+      ```text
+      Could you share the salary range for this role?
+      Based on my experience and the market rate for this position,
+      I'm looking for something in the range of $60,000 to $70,000.
+      Thank you for the offer. I'm very excited about the role.
+      Is there any flexibility on the base salary?
+      Could I have a couple of days to think it over?
+      ```
+
+      **Freelance**:
+
+      ```text
+      My rate is $45 per hour.
+      For a project of this size, I'd suggest a fixed price of $3,600,
+      which covers design, development and two rounds of revisions.
+      I understand budget is a concern. We could reduce the scope to fit it,
+      but I wouldn't be able to lower the rate.
+      ```
+
+      Vocabulario: **base salary**, **gross / net** (bruto / neto), **benefits**, **bonus**, **equity** (participación), **PTO** (vacaciones pagadas), **notice period** (preaviso), **contractor** (por contrato), **full-time employee**, **remote / hybrid / on-site**.
+
+      Preguntas que **tú** haces al final (siempre lleva dos):
+
+      ```text
+      What does a typical day look like for this role?
+      How do you measure success in the first six months?
+      What are the biggest challenges the team is facing right now?
+      What are the next steps in the process?
+      ```
+
+  - id: s5
+    title: "CV, LinkedIn y propuestas"
+    body: |
+      Cada línea: **verbo de acción + qué hiciste + resultado**. Sin `I`, sin `Responsible for`.
+
+      | Flojo | Fuerte |
+      |---|---|
+      | `Responsible for the backend.` | `Built a REST API in ASP.NET Core serving 50,000 daily requests.` |
+      | `Worked on performance.` | `Reduced page load time from 8s to under 1s by adding indexes and pagination.` |
+      | `Helped with the migration.` | `Led the migration of 120 PL/SQL procedures to a new schema with zero downtime.` |
+
+      **Titular de LinkedIn**: `Full-Stack Developer | C#/.NET, React, Oracle | I help retailers ship faster checkouts`
+
+      **Propuesta freelance** (corta, centrada en el cliente):
+
+      ```text
+      Hi Laura,
+
+      I read your post about syncing inventory across your three stores.
+      I've built a similar integration for a retailer with 40,000 SKUs,
+      which cut their stock errors by 90%.
+
+      Here's how I would approach it:
+      1. Audit the current data flow (2 days).
+      2. Build and test the sync service (2 weeks).
+      3. Roll out store by store.
+
+      I can start next Monday. Would you be available for a quick call this week?
+
+      Best regards,
+      Alex
+      ```
+
+      Fórmula: **demuestra que leíste su problema → prueba de que ya lo resolviste → plan en pasos → siguiente acción concreta**.
+
+cards:
+  - id: c1
+    front: "La estructura de `Tell me about yourself`."
+    back: "**Presente → pasado → futuro**, en un minuto: qué haces hoy, de dónde vienes, qué buscas."
+  - id: c2
+    front: "Corrige: `I have 5 years working with .NET`."
+    back: "`I have five years of experience with .NET` o `I've been working with .NET for five years`."
+  - id: c3
+    front: "¿Qué significa STAR?"
+    back: "**S**ituation, **T**ask, **A**ction, **R**esult. La acción en primera persona (`I`) y el resultado con cifras."
+  - id: c4
+    front: "Cuatro formas de graduar tu nivel sin exagerar."
+    back: "`proficient in` > `comfortable with` > `working knowledge of` > `some exposure to`."
+  - id: c5
+    front: "No conoces la tecnología por la que te preguntan. ¿Qué dices?"
+    back: "`I'm not familiar with it, but here's how I would approach it.`"
+  - id: c6
+    front: "¿Cómo pides el rango salarial y cómo das el tuyo?"
+    back: "`Could you share the salary range for this role?` · `I'm looking for something in the range of X to Y.`"
+  - id: c7
+    front: "Te hacen una oferta. ¿Qué respondes antes de aceptar?"
+    back: "`Thank you for the offer. Is there any flexibility on the base salary?` y `Could I have a couple of days to think it over?`"
+  - id: c8
+    front: "Fórmula de una línea de CV."
+    back: "**Verbo de acción + qué + resultado con cifra**: `Reduced load time from 8s to under 1s by adding indexes.`"
+  - id: c9
+    front: "¿Cómo se leen `O(n²)`, `{}` y `_`?"
+    back: "*oh of en squared*, *curly braces* y *underscore*."
+  - id: c10
+    front: "Dos preguntas para hacer tú al final de una entrevista."
+    back: "`How do you measure success in the first six months?` · `What are the next steps in the process?`"
+  - id: c11
+    front: "El cliente dice que tu tarifa es alta. ¿Qué ofreces?"
+    back: "Reducir el **alcance**, no la tarifa: `We could reduce the scope to fit the budget, but I wouldn't be able to lower the rate.`"
+
+questions:
+  - id: q1
+    type: mcq
+    prompt: "¿Cuál es correcta para presentarte?"
+    options:
+      - "I am developer since five years."
+      - "I have five years working as developer."
+      - "I'm a full-stack developer with five years of experience."
+      - "I am a developer of five years."
+    answer: 2
+    explanation: "Artículo `a`, y `with five years of experience`."
+  - id: q2
+    type: fill
+    prompt: "Completa: `I'm responsible ___ the payments module.`"
+    answer: ["for"]
+    explanation: "`responsible for`, nunca `responsible of`."
+  - id: q3
+    type: mcq
+    prompt: "En STAR, ¿qué debe incluir siempre el resultado?"
+    options:
+      - "Lo que hizo el equipo en general"
+      - "Una cifra o un impacto concreto"
+      - "Una crítica a tu jefe anterior"
+      - "Lo que harías en el futuro"
+    answer: 1
+    explanation: "El resultado se mide: `load time dropped from 8 seconds to under 1`."
+  - id: q4
+    type: mcq
+    prompt: "Te preguntan por una librería que no has usado. ¿Qué respondes?"
+    options:
+      - "I don't know it."
+      - "I'm not familiar with it, but here's how I would approach it."
+      - "Yes, I am an expert."
+      - "That library is not important."
+    answer: 1
+    explanation: "Honestidad más razonamiento: ni mentir ni rendirse."
+  - id: q5
+    type: fill
+    prompt: "Completa: `I've been working with React ___ three years.`"
+    answer: ["for"]
+    explanation: "`for` + duración. `since` iría con un punto de inicio: `since 2022`."
+  - id: q6
+    type: tf
+    prompt: "En una negociación, lo más recomendable es aceptar la primera oferta en la misma llamada para no parecer difícil."
+    answer: false
+    explanation: "Agradece, pregunta si hay flexibilidad y pide un par de días: `Could I have a couple of days to think it over?`"
+  - id: q7
+    type: mcq
+    prompt: "¿Qué línea de CV es más fuerte?"
+    options:
+      - "Responsible for the backend."
+      - "Worked in many projects."
+      - "Reduced checkout load time from 8s to under 1s by adding indexes and pagination."
+      - "I was helping with the database."
+    answer: 2
+    explanation: "Verbo de acción, qué hiciste y el resultado medible."
+  - id: q8
+    type: fill
+    prompt: "Completa: `Is there any ___ on the base salary?` (margen de negociación)"
+    answer: ["flexibility"]
+    explanation: "`Is there any flexibility on…?` es la forma educada de pedir más."
+  - id: q9
+    type: mcq
+    prompt: "¿Cómo se lee `O(n)` en voz alta?"
+    options: ["zero n", "oh of en", "big zero en", "order parenthesis en"]
+    answer: 1
+    explanation: "*oh of en*; también se dice *linear time*."
+  - id: q10
+    type: mcq
+    prompt: "Te preguntan por qué quieres dejar tu trabajo actual. La mejor respuesta…"
+    options:
+      - "My boss is terrible."
+      - "They pay very bad."
+      - "I've learned a lot there, and I'm now looking for a role with more client-facing work."
+      - "I am bored."
+    answer: 2
+    explanation: "Habla de lo que buscas, nunca mal del empleador actual."
+
+drills:
+  - id: d1
+    lang: text
+    title: "Tell me about yourself"
+    timeLimit: 300
+    prompt: |
+      Escribe **en inglés** tu presentación de un minuto (presente → pasado → futuro) con estos datos:
+
+      - Desarrollador **full-stack**, **5 años** de experiencia con C#, .NET y React.
+      - **Actualmente** en una fintech, a cargo del módulo de pagos de punta a punta.
+      - **Antes**, dos años en una agencia haciendo tiendas online.
+      - **Buscas** un puesto con más trato directo con clientes.
+    solution: |
+      I'm a full-stack developer with five years of experience building web applications
+      with C#, .NET and React.
+      Currently, I work at a fintech company, where I own the payments module end to end.
+      Before that, I spent two years at an agency, where I built e-commerce sites.
+      I'm now looking for a role where I can work more directly with clients.
+    checks:
+      - pattern: 'I(.m|\s+am)\s+a\s+full-?\s?stack\s+(developer|engineer)'
+        hint: "`I'm a full-stack developer` (con el artículo `a`)"
+      - pattern: '(five|5)\s+years\s+of\s+experience|for\s+(five|5)\s+years'
+        hint: "`with five years of experience`"
+      - pattern: '\b(currently|at\s+the\s+moment|right\s+now)\b'
+        hint: "Presente: `Currently, I work at…`"
+      - pattern: 'end[\s-]to[\s-]end|across\s+the\s+(whole\s+|entire\s+)?stack|from\s+the\s+\w+\s+to\s+the'
+        hint: "Vende lo full-stack: `end to end`"
+      - pattern: '\b(before\s+that|previously|prior\s+to\s+that)\b'
+        hint: "Pasado: `Before that, I spent two years…`"
+      - pattern: 'I(.m|\s+am)\s+(now\s+)?looking\s+for|I.d\s+like\s+to|I\s+want\s+to'
+        hint: "Futuro: `I'm now looking for a role where…`"
+      - pattern: 'clients?|customers?'
+        hint: "Menciona el trato con clientes"
+      - pattern: 'years\s+working|since\s+(five|5|two|2)\s+years|I\s+am\s+(full|developer)|\bactually\s+I\s+work'
+        forbid: true
+        hint: "Sin calcos: `years working`, `since five years`, `I am developer`, `actually I work`"
+  - id: d2
+    lang: text
+    title: "Un logro con el método STAR"
+    timeLimit: 300
+    prompt: |
+      Responde **en inglés** a `Tell me about a time you improved performance` con STAR:
+
+      - **Situation**: el checkout tardaba más de 8 segundos y se perdían ventas.
+      - **Task**: te pidieron encontrar el cuello de botella en un sprint.
+      - **Action**: perfilaste las consultas, añadiste índices y paginación.
+      - **Result**: de 8 segundos a menos de 1; la conversión subió un 12%.
+    solution: |
+      Our checkout page was taking over eight seconds to load, and we were losing sales.
+      I was asked to find the bottleneck and fix it within one sprint.
+      I profiled the queries, added two missing indexes and introduced pagination on the API.
+      As a result, load time dropped from eight seconds to under one,
+      and the conversion rate went up by 12%.
+    checks:
+      - pattern: '\b(was|were)\s+(taking|loading|losing)|\btook\s+(over|more\s+than)'
+        hint: "Situación en pasado: `was taking over eight seconds`"
+      - pattern: 'I\s+was\s+(asked|tasked|responsible|assigned)|my\s+(task|job|goal)\s+was'
+        hint: "Tarea: `I was asked to…` / `My task was to…`"
+      - pattern: 'bottleneck'
+        hint: "`bottleneck`"
+      - pattern: '\bI\s+(profiled|added|analy[sz]ed|identified|introduced|implemented|optimi[sz]ed|rewrote|found)'
+        hint: "Acción en primera persona y past simple: `I profiled…`, `I added…`"
+      - pattern: 'index(es)?|indices'
+        hint: "`indexes`"
+      - pattern: 'as\s+a\s+result|this\s+(led\s+to|resulted\s+in)|in\s+the\s+end'
+        hint: "Introduce el resultado: `As a result,`"
+      - pattern: 'from\s+(eight|8)\s*(seconds|s)?\s+to\s+(under|less\s+than|below)'
+        hint: "Antes y después: `from eight seconds to under one`"
+      - pattern: '12\s*(%|percent)'
+        hint: "La cifra: `by 12%`"
+      - pattern: '\bwe\s+(profiled|added|analy[sz]ed|identified|introduced|implemented|optimi[sz]ed)'
+        forbid: true
+        hint: "En la acción, `I`, no `we`: te evalúan a ti"
+  - id: d3
+    lang: text
+    title: "Propuesta freelance con precio"
+    timeLimit: 300
+    prompt: |
+      Una dueña de tiendas, **Laura**, publicó que necesita sincronizar el inventario de sus tres locales.
+      Escribe **en inglés** una propuesta breve:
+
+      - Muestra que entendiste su problema.
+      - Prueba: ya hiciste una integración parecida que redujo los errores de stock un **90%**.
+      - Plan en pasos numerados.
+      - Precio cerrado de **$3,600** y un **30% de anticipo**.
+      - Termina proponiendo una llamada.
+    solution: |
+      Hi Laura,
+
+      I read your post about syncing inventory across your three stores.
+      I've built a similar integration for a retailer, which cut their stock errors by 90%.
+
+      Here's how I would approach it:
+      1. Audit the current data flow.
+      2. Build and test the sync service.
+      3. Roll it out store by store.
+
+      I'd suggest a fixed price of $3,600, with a 30% deposit upfront.
+      Would you be available for a quick call this week?
+
+      Best regards,
+      Alex
+    checks:
+      - pattern: '^\s*(hi|hello|dear)\s+laura'
+        hint: "Saludo: `Hi Laura,`"
+      - pattern: 'inventory'
+        hint: "Nombra su problema: `inventory`"
+      - pattern: '(I.ve|I\s+have)\s+(built|developed|delivered|implemented|worked\s+on|done)'
+        hint: "Prueba en present perfect: `I've built a similar integration`"
+      - pattern: '90\s*(%|percent)'
+        hint: "La cifra: `by 90%`"
+      - pattern: '^\s*1[.)]\s+\w+'
+        hint: "Plan en pasos numerados"
+      - pattern: '\$\s?3,?600'
+        hint: "Precio con el símbolo delante: `$3,600`"
+      - pattern: 'fixed\s+(price|fee|rate)'
+        hint: "`a fixed price of…`"
+      - pattern: 'deposit|upfront|up\s+front'
+        hint: "Anticipo: `a 30% deposit upfront`"
+      - pattern: '\b(call|meeting|chat)\b'
+        hint: "Cierra con una acción: `a quick call this week`"
+      - pattern: '3\.600|3600\s?\$|I\s+have\s+knowledges?'
+        forbid: true
+        hint: "`$3,600` (coma de miles y símbolo delante) y sin `knowledges`"
+
+snippets:
+  - id: sn1
+    lang: text
+    title: "Pitch de un minuto"
+    code: |
+      I'm a full-stack developer with <n> years of experience building <what> with <stack>.
+      Currently, I work at <company type>, where I <own / lead / build> <what>.
+      Before that, I spent <n> years at <place>, where I <achievement>.
+      I'm now looking for a role where I can <goal>.
+  - id: sn2
+    lang: text
+    title: "Respuesta STAR"
+    code: |
+      Situation: <context in one sentence, past tense>.
+      Task: I was asked to ...
+      Action: I <verb>, <verb> and <verb>.
+      Result: As a result, <metric> went from X to Y.
+    note: "Acción con `I`, resultado con una cifra. Ten preparadas tres historias: un logro, un conflicto y un error."
+  - id: sn3
+    lang: text
+    title: "Entrevista técnica: pensar en voz alta"
+    code: |
+      Before I start, let me make sure I understand the problem.
+      Can I assume that ...?
+      Let me think out loud for a moment.
+      My first idea is a brute-force approach, which would be O(n squared).
+      We can do better with a hash map.
+      Let me walk through an example to check it.
+      I'm stuck on this part. Could you give me a hint?
+      If I had more time, I would add tests for the edge cases.
+  - id: sn4
+    lang: text
+    title: "Negociación de salario y tarifa"
+    code: |
+      Could you share the salary range for this role?
+      I'm looking for something in the range of $X to $Y.
+      Thank you for the offer. I'm very excited about the role.
+      Is there any flexibility on the base salary?
+      Could I have a couple of days to think it over?
+      My rate is $X per hour.
+      We could reduce the scope to fit the budget, but I wouldn't be able to lower the rate.
+  - id: sn5
+    lang: text
+    title: "Líneas de CV con resultado"
+    code: |
+      Built a REST API in ASP.NET Core serving 50,000 daily requests.
+      Reduced page load time from 8s to under 1s by adding indexes and pagination.
+      Led the migration of 120 PL/SQL procedures with zero downtime.
+      Automated the release pipeline, cutting deploy time from 40 to 5 minutes.
+      Mentored two junior developers through their first production releases.

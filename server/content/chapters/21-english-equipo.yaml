@@ -1,0 +1,388 @@
+id: ch21
+number: 21
+title: "Inglés del día a día en un equipo de desarrollo"
+level: "B1 → B2"
+track: english
+summary: "Standups, pull requests, code review, reportes de bugs y los errores típicos de un hispanohablante que te delatan en la primera reunión."
+objectives:
+  - "Dar tu actualización diaria en 30 segundos con los tiempos verbales correctos."
+  - "Escribir descripciones de PR, commits y comentarios de revisión claros y educados."
+  - "Reportar un bug y pedir ayuda de forma que te respondan a la primera."
+  - "Eliminar los falsos amigos y calcos del español más frecuentes."
+
+sections:
+  - id: s1
+    title: "El daily standup: ayer, hoy, bloqueos"
+    body: |
+      Un standup es corto y tiene una estructura fija. Lo que más se nota es el **tiempo verbal**:
+
+      | Momento | Tiempo verbal | Ejemplo |
+      |---|---|---|
+      | Ayer (terminado) | **Past simple** | `Yesterday I finished the login endpoint.` |
+      | Hoy (plan) | **Going to / present continuous** | `Today I'm going to start the payment integration.` |
+      | En curso | **Present continuous** | `I'm still working on the report export.` |
+      | Bloqueo | **Present simple / continuous** | `I'm blocked: I'm waiting for the API credentials.` |
+
+      **Regla de oro**: con una referencia de tiempo terminada (`yesterday`, `last week`, `on Monday`) se usa **past simple**, nunca present perfect. `Yesterday I have finished` es el error número uno.
+
+      Frases que suenan naturales:
+
+      ```text
+      Yesterday I wrapped up the validation logic and opened a PR.
+      Today I'm picking up the ticket about slow search.
+      I'm blocked on the staging database. Could someone grant me access?
+      No blockers on my side.
+      I ran into an issue with the build, but I found a workaround.
+      I should be done by tomorrow.
+      ```
+
+      Vocabulario útil: **wrap up** (terminar), **pick up** (tomar una tarea), **run into** (toparse con), **look into** (investigar), **follow up with** (dar seguimiento con alguien), **a workaround** (solución temporal), **a blocker** (algo que te impide avanzar).
+
+  - id: s2
+    title: "Commits, pull requests y code review"
+    body: |
+      **Commits**: en imperativo, sin punto final, como si completaras la frase *If applied, this commit will…*
+
+      ```text
+      Add retry logic to the payment client
+      Fix null reference when the cart is empty
+      Remove unused feature flag
+      ```
+
+      No `Added`, no `Fixing`, no `I fixed`.
+
+      **Descripción de un PR**: qué cambia, por qué, y cómo probarlo.
+
+      ```text
+      ## What
+      This PR adds server-side pagination to the orders endpoint.
+
+      ## Why
+      The page was loading all orders at once, which took over 8 seconds for large accounts.
+
+      ## How to test
+      1. Log in as a user with more than 500 orders.
+      2. Open /orders and check that only 20 rows are loaded.
+      ```
+
+      **Comentar en una revisión**: el inglés escrito suena más duro que el hablado. Suaviza con preguntas y con `could`, `might`, `what do you think`.
+
+      | Suena brusco | Suena profesional |
+      |---|---|
+      | `This is wrong.` | `I think this might break when the list is empty.` |
+      | `Change this.` | `Could we extract this into a helper?` |
+      | `Why did you do this?` | `What was the reasoning behind this approach?` |
+      | `You forgot the tests.` | `Would it make sense to add a test for this case?` |
+
+      Etiquetas habituales: **nit:** (detalle menor, opcional), **LGTM** (looks good to me), **WIP** (work in progress), **PTAL** (please take another look).
+
+      Responder a la revisión: `Good catch, fixed.` · `Done.` · `I'd rather keep it as is, because…` · `Fair point, I'll address it in a follow-up PR.`
+
+  - id: s3
+    title: "Reportar un bug y pedir ayuda"
+    body: |
+      Un buen reporte tiene cuatro partes. Memoriza los títulos:
+
+      ```text
+      Summary: Checkout fails with a 500 error when the cart contains a discounted item.
+
+      Steps to reproduce:
+      1. Add any discounted product to the cart.
+      2. Go to checkout and click "Pay".
+
+      Expected behavior: The payment goes through and the order is created.
+      Actual behavior: The API returns a 500 error and no order is created.
+
+      Environment: staging, Chrome 126.
+      ```
+
+      **Expected** = lo que debería pasar. **Actual** = lo que pasa de verdad (ojo: `actual` significa *real*, no *actual*).
+
+      Para pedir ayuda sin que te ignoren, da contexto, di lo que ya probaste y haz una pregunta concreta:
+
+      ```text
+      Hi Sam, quick question about the deploy pipeline.
+      The build fails on the migration step with a timeout.
+      I've already tried re-running it and increasing the timeout, with no luck.
+      Do you know if anything changed in the staging database yesterday?
+      ```
+
+      Fórmulas útiles: `I'm having trouble with…` · `I can't figure out why…` · `Does this ring a bell?` · `Could you point me in the right direction?` · `Thanks for the heads-up.`
+
+  - id: s4
+    title: "Falsos amigos y calcos que te delatan"
+    body: |
+      | Quieres decir | NO digas | Di |
+      |---|---|---|
+      | actualmente | `actually` (= en realidad) | `currently`, `at the moment` |
+      | eventualmente / tal vez | `eventually` (= al final) | `possibly`, `at some point` |
+      | asistir a una reunión | `assist` (= ayudar) | `attend a meeting` |
+      | estoy de acuerdo | `I am agree` | `I agree` |
+      | explícame | `explain me` | `explain it to me`, `walk me through it` |
+      | depende de | `depends of` | `depends on` |
+      | la gente es | `people is` | `people are` |
+      | tengo 5 años de experiencia | `I have 5 years working` | `I have 5 years of experience` |
+      | hace 2 años que trabajo aquí | `I work here since 2 years` | `I've been working here for 2 years` |
+      | discutir un tema | `discuss about` | `discuss the topic` |
+      | información / consejos | `informations`, `advices` | `information`, `advice` (incontables) |
+      | sensato | `sensible` está bien; `sensitive` = sensible | `a sensible default` / `sensitive data` |
+      | realizar | `realize` (= darse cuenta) | `carry out`, `perform` |
+      | hacer una pregunta | `make a question` | `ask a question` |
+      | hacer un deploy | `make a deploy` | `do a deploy`, `deploy` |
+
+      **For vs since**: `for` + duración (`for two years`), `since` + punto de inicio (`since 2022`).
+
+      **By vs until**: `I'll finish it by Friday` (como máximo el viernes) · `I'll be working on it until Friday` (durante todo el tiempo hasta el viernes).
+
+cards:
+  - id: c1
+    front: "¿Qué tiempo verbal va con `yesterday` o `last week`?"
+    back: "**Past simple**: `Yesterday I fixed the bug.` Nunca present perfect (`I have fixed yesterday` es incorrecto)."
+  - id: c2
+    front: "¿Cómo dices *actualmente estoy trabajando en…*?"
+    back: "`I'm currently working on…` — `actually` significa *en realidad*."
+  - id: c3
+    front: "¿En qué forma verbal se escribe el título de un commit?"
+    back: "En **imperativo**: `Add`, `Fix`, `Remove`, `Update`. No `Added` ni `Fixing`."
+  - id: c4
+    front: "Diferencia entre `by Friday` y `until Friday`."
+    back: "`by Friday` = como máximo el viernes (fecha límite). `until Friday` = de forma continua hasta el viernes."
+  - id: c5
+    front: "¿Qué significan `nit`, `LGTM` y `WIP` en una revisión?"
+    back: "`nit`: detalle menor y opcional. `LGTM`: *looks good to me*, aprobado. `WIP`: *work in progress*, aún no está listo."
+  - id: c6
+    front: "Las cuatro partes de un reporte de bug."
+    back: "**Summary**, **Steps to reproduce**, **Expected behavior** y **Actual behavior** (más el entorno)."
+  - id: c7
+    front: "¿Cómo dices *estoy de acuerdo* y *depende de*?"
+    back: "`I agree` (sin *am*) y `It depends on…` (no *of*)."
+  - id: c8
+    front: "Di en inglés: *hace tres años que trabajo con React*."
+    back: "`I've been working with React for three years.` — `for` + duración; `since` + punto de inicio (`since 2022`)."
+  - id: c9
+    front: "¿Qué es un `workaround`? ¿Y un `blocker`?"
+    back: "`workaround`: solución temporal que evita el problema sin arreglarlo. `blocker`: algo que te impide avanzar."
+  - id: c10
+    front: "Convierte en educado: `Change this.`"
+    back: "`Could we change this to…?` o `What do you think about…?` En revisiones se sugiere con preguntas y `could` / `might`."
+
+questions:
+  - id: q1
+    type: mcq
+    prompt: "¿Cuál es correcta en un standup?"
+    options:
+      - "Yesterday I have finished the endpoint."
+      - "Yesterday I finished the endpoint."
+      - "Yesterday I finish the endpoint."
+      - "Yesterday I was finish the endpoint."
+    answer: 1
+    explanation: "Con un tiempo terminado como `yesterday` se usa past simple."
+  - id: q2
+    type: mcq
+    prompt: "Quieres decir que *actualmente* el servicio está caído. ¿Cuál usas?"
+    options:
+      - "Actually the service is down."
+      - "The service is currently down."
+      - "Eventually the service is down."
+      - "The service is actual down."
+    answer: 1
+    explanation: "`currently` = actualmente. `actually` = en realidad; `eventually` = al final."
+  - id: q3
+    type: mcq
+    prompt: "¿Qué título de commit sigue la convención?"
+    options:
+      - "Fixed the login bug"
+      - "Fixing login"
+      - "Fix login redirect after password reset"
+      - "I fixed the login."
+    answer: 2
+    explanation: "Imperativo, específico y sin punto final."
+  - id: q4
+    type: fill
+    prompt: "Completa: `It depends ___ the size of the dataset.`"
+    answer: ["on"]
+    explanation: "`depend on`, nunca `depend of`."
+  - id: q5
+    type: fill
+    prompt: "Completa: `I've been working here ___ 2021.`"
+    answer: ["since"]
+    explanation: "`since` + punto de inicio. Con duración sería `for three years`."
+  - id: q6
+    type: tf
+    prompt: "`Could you explain me how the cache works?` es correcto."
+    answer: false
+    explanation: "`explain` no admite objeto indirecto directo: `explain to me how…` o `walk me through how…`."
+  - id: q7
+    type: mcq
+    prompt: "En un comentario de revisión, ¿cuál es la opción más profesional?"
+    options:
+      - "This is wrong, change it."
+      - "Why did you write this?"
+      - "I think this might fail when the list is empty. Could we add a check?"
+      - "You forgot to handle the empty list."
+    answer: 2
+    explanation: "Describe el problema, usa `might` para suavizar y propone con una pregunta."
+  - id: q8
+    type: fill
+    prompt: "Completa con la preposición: `I'll send you the report ___ Friday at the latest.`"
+    answer: ["by"]
+    explanation: "`by` marca la fecha límite. `until` indicaría una acción continua hasta entonces."
+  - id: q9
+    type: mcq
+    prompt: "En un reporte de bug, `Actual behavior` describe…"
+    options:
+      - "El comportamiento actual de la versión en producción"
+      - "Lo que realmente ocurre al seguir los pasos"
+      - "Lo que debería ocurrir"
+      - "El comportamiento de la versión anterior"
+    answer: 1
+    explanation: "`actual` es un falso amigo: significa *real*. Lo que debería pasar es `Expected behavior`."
+
+drills:
+  - id: d1
+    lang: text
+    title: "Standup update en 3 frases"
+    timeLimit: 180
+    prompt: |
+      Escribe tu actualización para el daily **en inglés**:
+
+      - **Ayer** terminaste el endpoint de login.
+      - **Hoy** vas a empezar la integración de pagos.
+      - Estás **bloqueado**: esperas las credenciales de la API que debe enviar el cliente.
+    solution: |
+      Yesterday I finished the login endpoint and opened a PR for it.
+      Today I'm going to start the payment integration.
+      I'm blocked: I'm still waiting for the API credentials from the client.
+    checks:
+      - pattern: 'yesterday,?\s+I\s+(finished|completed|wrapped\s+up|shipped|implemented|finalized)'
+        hint: "Ayer en **past simple**: `Yesterday I finished…`"
+      - pattern: 'yesterday,?\s+I\s+(have|.ve)\s'
+        forbid: true
+        hint: "Con `yesterday` no se usa present perfect (`I have finished`)"
+      - pattern: 'today,?\s+I(.m|\s+am|.ll|\s+will)\s+(going\s+to\s+)?\w+'
+        hint: "Hoy con `I'm going to…`, `I'm starting…` o `I'll…`"
+      - pattern: 'payment'
+        hint: "Menciona la integración de pagos (`payment integration`)"
+      - pattern: 'block(ed|er)'
+        hint: "Di que estás bloqueado: `I'm blocked` / `my blocker is…`"
+      - pattern: 'waiting\s+(for|on)\s'
+        hint: "`waiting for` (o `waiting on`) las credenciales"
+      - pattern: 'credentials'
+        hint: "`credentials`, no *credencials*"
+  - id: d2
+    lang: text
+    title: "Descripción de un pull request"
+    timeLimit: 300
+    prompt: |
+      Escribe la descripción de un PR **en inglés** con tres apartados: qué cambia, por qué y cómo probarlo.
+
+      Contexto: añadiste **paginación** en el endpoint de pedidos (`orders`) porque la página cargaba
+      todos los pedidos de golpe y tardaba más de 8 segundos.
+    solution: |
+      ## What
+      This PR adds server-side pagination to the orders endpoint.
+
+      ## Why
+      The page was loading every order at once, which took more than 8 seconds for large accounts.
+
+      ## How to test
+      1. Log in as a user with more than 500 orders.
+      2. Open the orders page and check that only 20 rows are loaded.
+      3. Click "Next" and verify that the second page loads.
+    checks:
+      - pattern: 'this\s+(PR|pull\s+request|change)\s+(adds|introduces|implements)'
+        hint: "Empieza con `This PR adds…` (presente, tercera persona)"
+      - pattern: 'pagination'
+        hint: "`pagination`"
+      - pattern: 'orders?'
+        hint: "Menciona el endpoint de `orders`"
+      - pattern: '\b(because|since|which|so\s+that)\b|^#*\s*why'
+        hint: "Explica el motivo (`because…`, `which took…` o un apartado `Why`)"
+      - pattern: 'how\s+to\s+test|steps\s+to\s+(test|verify)|testing'
+        hint: "Apartado `How to test`"
+      - pattern: '^\s*1[.)]\s+\w+'
+        hint: "Pasos numerados (`1. Log in…`)"
+      - pattern: 'this\s+PR\s+(added|adding)|I\s+have\s+added'
+        forbid: true
+        hint: "En presente: `This PR adds`, no `added` / `adding`"
+  - id: d3
+    lang: text
+    title: "Reporte de bug"
+    timeLimit: 300
+    prompt: |
+      Reporta este bug **en inglés** con el formato estándar (resumen, pasos, esperado, real):
+
+      En *staging*, al pulsar **Pay** en el checkout con un producto con descuento en el carrito,
+      la API responde 500 y no se crea el pedido.
+    solution: |
+      Summary: Checkout fails with a 500 error when the cart contains a discounted product.
+
+      Steps to reproduce:
+      1. Add a discounted product to the cart.
+      2. Go to checkout and click "Pay".
+
+      Expected behavior: The payment goes through and the order is created.
+      Actual behavior: The API returns a 500 error and no order is created.
+
+      Environment: staging.
+    checks:
+      - pattern: 'steps\s+to\s+reproduce'
+        hint: "`Steps to reproduce`"
+      - pattern: '^\s*1[.)]\s+\w+'
+        hint: "Pasos numerados"
+      - pattern: 'expected(\s+(behaviou?r|result))?\s*:'
+        hint: "`Expected behavior:` — lo que debería pasar"
+      - pattern: 'actual(\s+(behaviou?r|result))?\s*:'
+        hint: "`Actual behavior:` — lo que pasa de verdad"
+      - pattern: '\b500\b'
+        hint: "Incluye el código de error (500)"
+      - pattern: 'staging'
+        hint: "Indica el entorno (`staging`)"
+      - pattern: 'discount'
+        hint: "`discounted product` / `discount`"
+
+snippets:
+  - id: sn1
+    lang: text
+    title: "Plantilla de standup"
+    code: |
+      Yesterday I <past simple: finished / fixed / reviewed> ...
+      Today I'm going to <verb> ...
+      Blockers: I'm blocked on ... / No blockers on my side.
+    note: "Tres frases. Si necesitas más, es una conversación para después del standup: `Let's take this offline.`"
+  - id: sn2
+    lang: text
+    title: "Plantilla de descripción de PR"
+    code: |
+      ## What
+      This PR adds / fixes / removes ...
+
+      ## Why
+      ...
+
+      ## How to test
+      1. ...
+      2. ...
+
+      ## Notes
+      Out of scope: ...
+  - id: sn3
+    lang: text
+    title: "Frases para code review"
+    code: |
+      nit: could we rename this to something more descriptive?
+      I think this might break when the list is empty.
+      What do you think about extracting this into a helper?
+      Would it make sense to add a test for this case?
+      Good catch, fixed.
+      Fair point. I'll address it in a follow-up PR.
+      LGTM, nice work!
+  - id: sn4
+    lang: text
+    title: "Pedir ayuda por chat"
+    code: |
+      Hi <name>, quick question about <topic>.
+      <What happens>. I've already tried <what you tried>, with no luck.
+      Do you know if <specific question>?
+      Thanks in advance!
+    note: "Contexto + lo que ya probaste + una pregunta concreta. Evita el `Hi` suelto esperando respuesta."
