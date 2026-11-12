@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { useToast } from '../components/Toast';
@@ -12,6 +12,7 @@ export function LoginPage() {
   const { setUser } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
+  const from = (useLocation().state as { from?: string } | null)?.from ?? '/';
   const [dbMissing, setDbMissing] = useState(false);
 
   // En Vercel sin base de datos configurada, /api/health responde configured: false
@@ -30,7 +31,7 @@ export function LoginPage() {
         : await api.register(form.name, form.email, form.password);
       setUser(user);
       toast(`¡Hola, ${user.name}!`, 'ok');
-      navigate('/');
+      navigate(from, { replace: true });
     } catch (err) { toast((err as Error).message, 'error'); } finally { setBusy(false); }
   }
 

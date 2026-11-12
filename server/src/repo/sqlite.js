@@ -128,13 +128,14 @@ export function createSqliteRepo(file = ':memory:') {
     },
 
     // ---------- Intentos / estadísticas ----------
-    async activity(userId, sinceDay) {
-      return st(`SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS n, SUM(correct) AS ok
-                 FROM attempts WHERE user_id = ? AND created_at >= ? GROUP BY day ORDER BY day`)
-        .all(userId, sinceDay).map((r) => ({ day: r.day, count: r.n, correct: r.ok }));
+    /** tzMinutes desplaza las fechas UTC a la hora local del usuario antes de agrupar por día. */
+    async activity(userId, sinceDay, tzMinutes = 0) {
+      return st(`SELECT substr(datetime(created_at, ?), 1, 10) AS day, COUNT(*) AS n, SUM(correct) AS ok
+                 FROM attempts WHERE user_id = ? GROUP BY day HAVING day >= ? ORDER BY day`)
+        .all(`${tzMinutes} minutes`, userId, sinceDay).map((r) => ({ day: r.day, count: r.n, correct: r.ok }));
     },
-    async activeDays(userId) {
-      return st('SELECT DISTINCT substr(created_at, 1, 10) AS day FROM attempts WHERE user_id = ?').all(userId).map((r) => r.day);
+    async activeDays(userId, tzMinutes = 0) {
+      return st('SELECT DISTINCT substr(datetime(created_at, ?), 1, 10) AS day FROM attempts WHERE user_id = ?').all(`${tzMinutes} minutes`, userId).map((r) => r.day);
     },
     async totals(userId) {
       const r = st('SELECT COUNT(*) AS n, COALESCE(SUM(correct), 0) AS ok FROM attempts WHERE user_id = ?').get(userId);

@@ -7,8 +7,9 @@ export function createProgress(repo, content) {
   async function resolveItem(userId, itemId) {
     if (typeof itemId !== 'string') return null;
     if (itemId.startsWith('u.')) {
+      // Solo la forma canónica: "u.01" o "u.1e0" apuntarían a la misma tarjeta con otro id de repaso
+      if (!/^u\.[1-9]\d*$/.test(itemId)) return null;
       const id = Number(itemId.slice(2));
-      if (!Number.isInteger(id)) return null;
       const card = await repo.getCustomCard(userId, id);
       if (!card) return null;
       return {

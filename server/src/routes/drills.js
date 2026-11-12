@@ -41,6 +41,8 @@ export function createTicketSigner(secret = defaultDrillSecret()) {
   };
 }
 
+const GRACE_MS = 5000;
+
 export default function drillRoutes({ repo, content, progress, tickets = createTicketSigner() }) {
   const r = Router();
   r.use(requireUser);
@@ -115,7 +117,7 @@ export default function drillRoutes({ repo, content, progress, tickets = createT
     if (code.length > 20_000) throw httpError(413, 'Código demasiado largo');
 
     const elapsedMs = Date.now() - startedAt;
-    const g = gradeDrill(it.data, code, elapsedMs);
+    const g = gradeDrill(it.data, code, elapsedMs, GRACE_MS);
     const next = await progress.record(req.user.id, itemId, it.chapterId, g.srsGrade, 'drill', g.correct);
     await repo.saveDrillSubmission({
       userId: req.user.id, itemId, chapterId: it.chapterId, code, passed: g.passed, total: g.total,

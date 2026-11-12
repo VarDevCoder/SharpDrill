@@ -44,7 +44,7 @@ export function ChapterPage() {
         ))}
       </div>
 
-      {tab === 'teoria' && <Theory ch={ch} />}
+      {tab === 'teoria' && <Theory key={ch.id} ch={ch} />}
       {tab === 'tarjetas' && <StudySession key={`c-${ch.id}`} items={shuffle(ch.cards)} mode="study" title="Flashcards del capítulo" />}
       {tab === 'practica' && <StudySession key={`q-${ch.id}`} items={shuffle(ch.questions)} mode="practice" title="Práctica del capítulo" />}
       {tab === 'drills' && <ChapterDrills ch={ch} />}

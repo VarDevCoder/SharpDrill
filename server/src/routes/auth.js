@@ -20,7 +20,14 @@ export default function authRoutes({ repo, secureCookies }) {
     if (password.length < 8) throw httpError(400, 'La contraseña debe tener al menos 8 caracteres');
     if (await repo.findUserByEmail(email)) throw httpError(409, 'Ese email ya está registrado');
 
-    const id = await repo.createUser({ email, name, passwordHash: hashPassword(password) });
+    let id;
+    try {
+      id = await repo.createUser({ email, name, passwordHash: hashPassword(password) });
+    } catch (e) {
+      // Dos registros simultáneos con el mismo email: el segundo choca con el UNIQUE
+      if (e.status || !(await repo.findUserByEmail(email))) throw e;
+      throw httpError(409, 'Ese email ya está registrado');
+    }
     const { token, expiresAt } = await issueToken(repo, id);
     setSessionCookie(res, token, expiresAt, secureCookies);
     res.status(201).json({ user: { id, email, name, dailyGoal: 20 }, token, tokenType: 'Bearer', expiresAt });
@@ -32,6 +39,7 @@ export default function authRoutes({ repo, secureCookies }) {
     const password = String(req.body?.password ?? '');
     const u = await repo.findUserByEmail(email);
     if (!u || !verifyPassword(password, u.passwordHash)) throw httpError(401, 'Email o contraseña incorrectos');
+    await repo.purgeExpiredSessions(); // en serverless no hay arranque del servidor donde limpiar
     const { token, expiresAt } = await issueToken(repo, u.id);
     setSessionCookie(res, token, expiresAt, secureCookies);
     res.json({ user: publicUser(u), token, tokenType: 'Bearer', expiresAt });

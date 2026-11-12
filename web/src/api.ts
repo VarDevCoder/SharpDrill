@@ -66,7 +66,8 @@ export const api = {
   submitExam: (id: number, answers: Record<string, unknown>) => request<{ result: ExamResult }>('POST', `/exams/${id}/submit`, { answers }),
   exams: () => request<{ exams: ExamSummary[] }>('GET', '/exams'),
 
-  stats: () => request<Stats>('GET', '/stats'),
+  // tz: minutos respecto a UTC, para que "hoy", la racha y el calendario usen la hora local
+  stats: () => request<Stats>('GET', `/stats${qs({ tz: -new Date().getTimezoneOffset() })}`),
   resetProgress: (chapter?: string) => request<{ ok: true }>('DELETE', `/stats/progress${qs({ chapter })}`),
 
   snippets: (o: Query) => request<{ snippets: Snippet[]; shortcuts: Shortcut[]; langs: string[]; tools: string[] }>('GET', `/snippets${qs(o)}`),

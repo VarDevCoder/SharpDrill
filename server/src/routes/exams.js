@@ -45,6 +45,7 @@ export default function examRoutes({ repo, content, progress }) {
     const graded = [];
     for (const id of exam.itemIds) {
       const it = await progress.resolveItem(userId, id);
+      if (!it) continue; // la pregunta ya no existe en el contenido
       const answered = Object.hasOwn(answers, id) && answers[id] !== null && answers[id] !== '';
       const { correct, expected } = answered && !late ? gradeAnswer(it.data, answers[id]) : { correct: false, expected: it.data.answer };
       graded.push({ it, id, answered, correct, expected });
@@ -53,9 +54,9 @@ export default function examRoutes({ repo, content, progress }) {
     // finishExam es condicional (finished_at IS NULL): dos entregas simultáneas no puntúan dos veces
     if (!(await repo.finishExam(userId, exam.id, score))) throw httpError(409, 'Este examen ya fue entregado');
 
+    await Promise.all(graded.map((g) => progress.record(userId, g.id, g.it.chapterId, g.correct ? 2 : 0, 'exam', g.correct)));
     const results = [];
     for (const g of graded) {
-      await progress.record(userId, g.id, g.it.chapterId, g.correct ? 2 : 0, 'exam', g.correct);
       results.push({ ...g.it.public, answer: g.answered ? answers[g.id] : null, correct: g.correct, expected: g.expected, explanation: g.it.data.explanation });
     }
     res.json({ result: { id: exam.id, score, total: exam.total, late, elapsed: Math.round(elapsed), results } });

@@ -32,6 +32,9 @@ export function DrillRunner({ items, title = 'Drills de código', onRestart }: P
   const [history, setHistory] = useState<{ d: DrillItem; r: DrillResult }[]>([]);
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
+  const autoSent = useRef(false);
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
   const codeRef = useRef('');
   codeRef.current = code;
 
@@ -48,12 +51,14 @@ export function DrillRunner({ items, title = 'Drills de código', onRestart }: P
       setStartedAt(Date.now());
       setDeadline(Date.now() + s.timeLimit * 1000);
       setCode(d.starter ?? '');
+      autoSent.current = false;
       setPhase('running');
     } catch (e) { toast((e as Error).message, 'error'); } finally { setBusy(false); }
   };
 
   const submit = useCallback(async () => {
-    if (!d || !ticket || submitting.current) return;
+    // Solo durante el drill: Ctrl+Enter en el editor ya entregado no debe volver a entregar
+    if (!d || !ticket || submitting.current || phaseRef.current !== 'running') return;
     submitting.current = true;
     setBusy(true);
     try {
@@ -66,7 +71,12 @@ export function DrillRunner({ items, title = 'Drills de código', onRestart }: P
 
   // Entrega automática al agotar el tiempo
   useEffect(() => {
-    if (phase === 'running' && left <= 0) { toast('¡Tiempo! Entregando tu código…', 'warn'); submit(); }
+    // Una sola vez: si la entrega falla, se reintenta a mano con el botón (sin bucle de peticiones ni de avisos)
+    if (phase === 'running' && left <= 0 && !autoSent.current) {
+      autoSent.current = true;
+      toast('¡Tiempo! Entregando tu código…', 'warn');
+      submit();
+    }
   }, [phase, left, submit, toast]);
 
   const next = () => { setI((x) => x + 1); setPhase('ready'); setResult(null); setTicket(null); setCode(''); };

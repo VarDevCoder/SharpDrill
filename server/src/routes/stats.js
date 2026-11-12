@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireUser } from '../auth.js';
 import { httpError } from '../errors.js';
+import { clampInt } from './review.js';
 
 const DAY_MS = 86_400_000;
 const dayKey = (d) => d.toISOString().slice(0, 10);
@@ -27,11 +28,14 @@ export default function statsRoutes({ repo, content, progress }) {
   r.get('/', async (req, res) => {
     const userId = req.user.id;
     const now = new Date();
-    const since = new Date(now.getTime() - 83 * DAY_MS);
+    // tz = minutos respecto a UTC (p. ej. -180). Los "días" se calculan en la hora local del usuario, no en UTC.
+    const tz = clampInt(req.query.tz, 0, -840, 840);
+    const local = (d) => new Date(d.getTime() + tz * 60_000);
+    const since = new Date(local(now).getTime() - 83 * DAY_MS);
 
     const [activityRows, days, totals, byChapter, byModeRows, dueNow, weakRows, summaries] = await Promise.all([
-      repo.activity(userId, dayKey(since)),
-      repo.activeDays(userId),
+      repo.activity(userId, dayKey(since), tz),
+      repo.activeDays(userId, tz),
       repo.totals(userId),
       repo.accuracyBy(userId, 'chapter'),
       repo.accuracyBy(userId, 'mode'),
@@ -50,7 +54,7 @@ export default function statsRoutes({ repo, content, progress }) {
     for (let i = 1; i <= 7; i++) {
       const from = new Date(now.getTime() + (i - 1) * DAY_MS);
       const to = new Date(now.getTime() + i * DAY_MS);
-      forecast.push({ day: dayKey(to), count: await repo.countDue(userId, from, to) });
+      forecast.push({ day: dayKey(local(to)), count: await repo.countDue(userId, from, to) });
     }
 
     const weak = [];
@@ -65,8 +69,8 @@ export default function statsRoutes({ repo, content, progress }) {
 
     const acc = new Map(byChapter.map((x) => [x.key, x]));
     res.json({
-      streak: computeStreak(days, now),
-      today: byDay.get(dayKey(now)) ?? 0,
+      streak: computeStreak(days, local(now)),
+      today: byDay.get(dayKey(local(now))) ?? 0,
       dailyGoal: req.user.dailyGoal,
       dueNow,
       totals: { ...totals, accuracy: pct(totals.correct, totals.attempts) ?? 0 },

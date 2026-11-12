@@ -154,10 +154,15 @@ const normalize = (s) => String(s).trim().toLowerCase().replace(/\s+/g, ' ').rep
 /** Corrige una respuesta. Devuelve { correct, expected } */
 export function grade(q, answer) {
   switch (q.type) {
-    case 'mcq':
-      return { correct: Number(answer) === q.answer, expected: q.answer };
-    case 'tf':
-      return { correct: (answer === true || answer === 'true') === q.answer, expected: q.answer };
+    case 'mcq': {
+      // Number(null), Number('') y Number([]) valen 0: sin esta comprobación, una respuesta vacía acertaría la opción A
+      const n = typeof answer === 'number' ? answer : typeof answer === 'string' && /^\d+$/.test(answer.trim()) ? Number(answer) : NaN;
+      return { correct: n === q.answer, expected: q.answer };
+    }
+    case 'tf': {
+      const b = answer === true || answer === 'true' ? true : answer === false || answer === 'false' ? false : null;
+      return { correct: b !== null && b === q.answer, expected: q.answer };
+    }
     case 'fill': {
       const accepted = (Array.isArray(q.answer) ? q.answer : [q.answer]).map(normalize);
       return { correct: accepted.includes(normalize(answer ?? '')), expected: q.answer };
@@ -172,7 +177,7 @@ export function grade(q, answer) {
  * Calificación SM-2: todo correcto y en menos de la mitad del tiempo → 3 (Fácil); todo correcto a tiempo → 2;
  * todo correcto fuera de tiempo o ≥ 70 % de checks → 1; resto → 0.
  */
-export function gradeDrill(d, code, elapsedMs) {
+export function gradeDrill(d, code, elapsedMs, graceMs = 0) {
   const src = stripComments(String(code ?? '').slice(0, MAX_CODE), d.lang);
   const results = d.checks.map((c) => {
     const hit = compileCheck(c).test(src);
@@ -181,7 +186,8 @@ export function gradeDrill(d, code, elapsedMs) {
   const passed = results.filter((r) => r.ok).length;
   const total = results.length;
   const limitMs = d.timeLimit * 1000;
-  const inTime = elapsedMs <= limitMs;
+  // graceMs absorbe la latencia de red: el cliente entrega al llegar a 0, pero el servidor lo recibe algo después
+  const inTime = elapsedMs <= limitMs + graceMs;
   let srsGrade = 0;
   if (passed === total) srsGrade = !inTime ? 1 : elapsedMs <= limitMs / 2 ? 3 : 2;
   else if (passed / total >= 0.7) srsGrade = 1;

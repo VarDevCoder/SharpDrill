@@ -110,6 +110,7 @@ export default function reviewRoutes({ repo, content, progress }) {
     const mode = MODES.has(req.body?.mode) ? req.body.mode : 'practice';
     const it = await progress.resolveItem(req.user.id, itemId);
     if (!it || it.kind !== 'question') throw httpError(404, 'Pregunta no encontrada');
+    if (answer === undefined || answer === null || answer === '' || typeof answer === 'object') throw httpError(400, 'Falta la respuesta');
     const { correct, expected } = gradeAnswer(it.data, answer);
     const confidence = [1, 2, 3].includes(req.body?.confidence) ? req.body.confidence : 2;
     const next = await progress.record(req.user.id, itemId, it.chapterId, correct ? confidence : 0, mode, correct);

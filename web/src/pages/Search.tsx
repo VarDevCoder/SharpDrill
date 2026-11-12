@@ -13,8 +13,11 @@ export function SearchPage() {
   const q = params.get('q') ?? '';
   const [text, setText] = useState(q);
   const { data, loading } = useAsync(() => (q.trim().length >= 2 ? api.search(q) : Promise.resolve({ results: [] })), [q]);
-  const re = q ? new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi') : null;
-  const hl = (t: string) => ({ __html: re ? esc(t).replace(re, (m) => `<mark>${m}</mark>`) : esc(t) });
+  const re = q.trim() ? new RegExp(`(${q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi') : null;
+  // Se resalta sobre el texto original y se escapa cada trozo: resaltar sobre el HTML ya escapado rompía entidades como &amp;
+  const hl = (t: string) => ({
+    __html: re ? t.split(re).map((part, i) => (i % 2 ? `<mark>${esc(part)}</mark>` : esc(part))).join('') : esc(t),
+  });
 
   return (
     <>

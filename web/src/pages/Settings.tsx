@@ -66,7 +66,10 @@ export function SettingsPage() {
                 <td>{t.label}</td>
                 <td>{new Date(t.createdAt).toLocaleDateString('es-ES')}</td>
                 <td>{new Date(t.expiresAt).toLocaleDateString('es-ES')}</td>
-                <td><button className="btn ghost small danger" type="button" onClick={async () => { await api.deleteToken(t.id); tokens.reload(); toast('Token revocado', 'ok'); }}>Revocar</button></td>
+                <td><button className="btn ghost small danger" type="button" onClick={async () => {
+                  try { await api.deleteToken(t.id); toast('Token revocado', 'ok'); } catch (err) { toast((err as Error).message, 'error'); }
+                  tokens.reload();
+                }}>Revocar</button></td>
               </tr>
             ))}
           </tbody></table></div>

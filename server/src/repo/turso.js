@@ -119,13 +119,14 @@ export async function createTursoRepo({ url, authToken }) {
     },
 
     // ---------- Intentos / estadísticas ----------
-    async activity(userId, sinceDay) {
-      return (await all(`SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS n, SUM(correct) AS ok
-                         FROM attempts WHERE user_id = ? AND created_at >= ? GROUP BY day ORDER BY day`, userId, sinceDay))
+    /** tzMinutes desplaza las fechas UTC a la hora local del usuario antes de agrupar por día. */
+    async activity(userId, sinceDay, tzMinutes = 0) {
+      return (await all(`SELECT substr(datetime(created_at, ?), 1, 10) AS day, COUNT(*) AS n, SUM(correct) AS ok
+                         FROM attempts WHERE user_id = ? GROUP BY day HAVING day >= ? ORDER BY day`, `${tzMinutes} minutes`, userId, sinceDay))
         .map((r) => ({ day: r.day, count: r.n, correct: r.ok }));
     },
-    async activeDays(userId) {
-      return (await all('SELECT DISTINCT substr(created_at, 1, 10) AS day FROM attempts WHERE user_id = ?', userId)).map((r) => r.day);
+    async activeDays(userId, tzMinutes = 0) {
+      return (await all('SELECT DISTINCT substr(datetime(created_at, ?), 1, 10) AS day FROM attempts WHERE user_id = ?', `${tzMinutes} minutes`, userId)).map((r) => r.day);
     },
     async totals(userId) {
       const r = await get('SELECT COUNT(*) AS n, COALESCE(SUM(correct), 0) AS ok FROM attempts WHERE user_id = ?', userId);

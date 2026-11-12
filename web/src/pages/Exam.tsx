@@ -98,7 +98,10 @@ function ExamRunner({ exam, onDone }: { exam: Exam; onDone: (r: ExamResult) => v
   const toast = useToast();
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const sent = useRef(false);
-  const deadline = Date.parse(exam.startedAt) + exam.timeLimit * 1000;
+  const autoSent = useRef(false);
+  // Con el reloj local (el examen se acaba de crear): si el reloj del PC está desfasado respecto al servidor,
+  // usar exam.startedAt haría que el contador mintiera y el examen llegara fuera de tiempo.
+  const [deadline] = useState(() => Date.now() + exam.timeLimit * 1000);
   const now = useNow(500);
   const left = deadline - now;
   const answersRef = useRef(answers);
@@ -113,7 +116,10 @@ function ExamRunner({ exam, onDone }: { exam: Exam; onDone: (r: ExamResult) => v
     catch (e) { sent.current = false; toast((e as Error).message, 'error'); }
   }, [exam, onDone, toast]);
 
-  useEffect(() => { if (left <= 0) { toast('¡Tiempo! Entregando examen…', 'warn'); submit(true); } }, [left, submit, toast]);
+  // Una sola vez: si la entrega falla, se reintenta a mano con el botón
+  useEffect(() => {
+    if (left <= 0 && !autoSent.current) { autoSent.current = true; toast('¡Tiempo! Entregando examen…', 'warn'); submit(true); }
+  }, [left, submit, toast]);
 
   const set = (id: string, v: unknown) => setAnswers((a) => {
     const n = { ...a };
