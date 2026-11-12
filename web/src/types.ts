@@ -14,7 +14,8 @@ export interface ChapterSummary {
   sectionsRead: number; seen: number; total: number; due: number; mastery: number;
 }
 
-export interface Section { id: string; title: string; body: string }
+export interface RealWorldCase { sector: string; text: string }
+export interface Section { id: string; title: string; body: string; realWorld?: RealWorldCase[] }
 
 export interface CardItem {
   id: string; kind: 'card'; chapterId: string; front: string; back: string; code?: string; lang?: Lang;

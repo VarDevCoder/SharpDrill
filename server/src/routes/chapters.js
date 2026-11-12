@@ -19,7 +19,7 @@ export default function chapterRoutes({ repo, content, progress }) {
     const snip = (text, i) => text.slice(Math.max(0, i - 60), i + 120);
     for (const ch of content.chapters) {
       for (const s of ch.sections) {
-        const text = s.title + '\n' + s.body;
+        const text = [s.title, s.body, ...(s.realWorld ?? []).map((c) => `${c.sector}: ${c.text}`)].join('\n');
         const i = text.toLowerCase().indexOf(term);
         if (i >= 0) results.push({ type: 'section', chapterId: ch.id, chapterTitle: ch.title, sectionId: s.id, title: s.title, snippet: snip(text, i) });
       }

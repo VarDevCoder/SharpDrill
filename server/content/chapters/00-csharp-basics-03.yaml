@@ -30,6 +30,37 @@ sections:
       Este programa muestra Hay stock suficiente. Cambia cantidad a 5 y comprueba la otra rama. `<=` significa menor o igual; también tienes `<`, `>`, `>=`, `==` (igualdad) y `!=` (distinto). No confundas `=` para asignar con `==` para comparar.
 
       Todavía falta una regla: una cantidad negativa también es menor que stock. Combina condiciones con `&&` (ambas deben cumplirse): `cantidad > 0 && cantidad <= stock`. Usa `||` cuando baste con que se cumpla una de las condiciones y `!` para negar un booleano.
+    realWorld:
+      - sector: Fintech
+        text: |
+          **Reglas de aprobación de un pago:**
+
+          ```csharp
+          if (monto > 0 && monto <= saldo && monto <= limiteDiario)
+          {
+              Console.WriteLine("Pago aprobado");
+          }
+          else
+          {
+              Console.WriteLine("Pago rechazado");
+          }
+          ```
+
+          Un motor antifraude también usa condiciones: `if (monto > 5000000m || paisDistinto)` pide un código adicional (OTP).
+
+          **Técnico:** confundir `=` con `==` o `&&` con `||` en estas reglas puede aprobar pagos que debían rechazarse. Por eso cada regla se prueba con casos frontera: exactamente el saldo, un peso más y cero.
+      - sector: ERP
+        text: |
+          **Control de crédito:** el ERP bloquea un pedido si el cliente superaría su cupo:
+
+          ```csharp
+          if (saldoPendiente + totalPedido > cupoCredito)
+          {
+              Console.WriteLine("Pedido bloqueado: requiere aprobación de cartera");
+          }
+          ```
+
+          **Técnico:** así se implementan los *flujos de aprobación* de los ERP. La condición determina si el documento sigue automáticamente o queda pendiente de que una persona lo apruebe.
   - id: s2
     title: "Acepta solo números válidos"
     body: |
@@ -51,6 +82,23 @@ sections:
       Prueba con 3, con cero, con -2 y con hola. Solo 3 debe aceptarse. `&&` evalúa la parte derecha únicamente cuando la izquierda es verdadera. Una conversión exitosa no basta: el cero y los negativos son enteros, pero aquí no son cantidades permitidas.
 
       **Hazlo tú:** añade un stock fijo de 4 y acepta únicamente cantidades positivas que no superen ese stock. Comprueba también el valor exacto 4: debe aceptarse.
+    realWorld:
+      - sector: Fintech
+        text: |
+          **Nunca aceptes montos negativos.** Si una transferencia acepta `-50000`, el sistema podría restar un valor negativo, es decir, **sumar dinero** a quien envía. Por eso existe la regla `cantidad > 0` junto a `TryParse`.
+
+          **Técnico:** para montos usa `decimal.TryParse`, y define la cultura: `"1.500"` significa mil quinientos en Colombia y uno coma cinco en EE. UU.
+
+          ```csharp
+          using System.Globalization;
+          bool ok = decimal.TryParse(texto, NumberStyles.Number,
+              new CultureInfo("es-CO"), out decimal monto) && monto > 0;
+          ```
+      - sector: ERP
+        text: |
+          En una **carga masiva** de inventario, cada fila que no pasa `TryParse` se agrega a un **reporte de errores** ("fila 238: cantidad 'diez' no es un número") y el proceso continúa con las demás.
+
+          **Técnico:** `TryParse` es preferible a `Parse` en estos casos porque un dato inválido es **esperable**, no excepcional, y no necesitas una excepción para manejarlo.
   - id: s3
     title: "Repite un número conocido de veces"
     body: |
@@ -66,6 +114,26 @@ sections:
       La salida es Etiqueta 1, Etiqueta 2 y Etiqueta 3, cada una en su línea. `numero++` aumenta numero en uno. Cuando llega a 4, `numero <= 3` es false y el bucle termina. La variable numero declarada en el for solo está disponible dentro de ese for.
 
       **Hazlo tú:** imprime cinco etiquetas. Luego empieza en cero y usa `numero < 5`. Obtendrás cinco vueltas también, con los valores 0, 1, 2, 3 y 4. Cuenta las vueltas; no confundas el último valor con la cantidad de repeticiones.
+    realWorld:
+      - sector: Fintech
+        text: |
+          **Tabla de amortización:** un crédito a 12 meses genera 12 cuotas con su fecha de pago:
+
+          ```csharp
+          DateTime primerPago = new DateTime(2026, 1, 15);
+          for (int cuota = 1; cuota <= 12; cuota++)
+          {
+              DateTime fecha = primerPago.AddMonths(cuota - 1);
+              Console.WriteLine($"Cuota {cuota}: {fecha:dd/MM/yyyy}");
+          }
+          ```
+
+          **Técnico:** un error de uno (*off-by-one*), como usar `< 12` cuando empiezas en 1, genera **11 cuotas** y deja un saldo sin cobrar. Por eso esta lección insiste en contar las vueltas.
+      - sector: ERP
+        text: |
+          Al recibir 50 cajas de un proveedor, la bodega imprime **una etiqueta con código de barras por caja**: un `for` de 1 a 50. También se usan bucles para generar numeraciones consecutivas, como `FAC-0001`, `FAC-0002`, etc.
+
+          **Técnico:** `$"FAC-{numero:D4}"` rellena con ceros a la izquierda hasta 4 dígitos.
   - id: s4
     title: "Repite hasta que el usuario termine"
     body: |
@@ -84,6 +152,29 @@ sections:
       La condición se comprueba antes de cada vuelta. Aquí actualizamos comando dentro del bucle para que pueda terminar. Si nunca cambias aquello de lo que depende la condición, puedes crear un bucle infinito. En la terminal, Ctrl+C permite interrumpir un programa que no termina.
 
       **Antes de avanzar:** prueba una venta con cantidad 1, cantidad igual al stock, cantidad superior, cero, un negativo y texto. Explica cuáles se aceptan y por qué. No necesitas memorizar toda la sintaxis: puedes consultar el ejemplo mientras practicas.
+    realWorld:
+      - sector: Fintech
+        text: |
+          **Reintentos contra la pasarela de pagos:** si falla por un tiempo de espera agotado, se intenta de nuevo, pero con un límite:
+
+          ```csharp
+          int intentos = 0;
+          bool exito = false;
+          while (!exito && intentos < 3)
+          {
+              intentos++;
+              // exito = IntentarCobro();
+          }
+          ```
+
+          El contador evita un bucle infinito.
+
+          **Técnico:** en producción se usa Polly (o `Microsoft.Extensions.Http.Resilience`, que se basa en ella) con esperas crecientes (*backoff* exponencial). Además, se envía una **clave de idempotencia** para que un reintento no cobre dos veces al cliente.
+      - sector: ERP
+        text: |
+          Muchos servicios de un ERP son **workers** que leen una cola de tareas mientras estén encendidos: facturas pendientes de enviar a la autoridad tributaria, correos o sincronizaciones.
+
+          **Técnico:** en .NET se implementan con `BackgroundService` y un bucle `while (!stoppingToken.IsCancellationRequested)`. Es el mismo `while` de esta lección: la condición permite detener el servicio limpiamente.
 cards:
   - id: c1
     front: "¿Qué diferencia hay entre = y ==?"

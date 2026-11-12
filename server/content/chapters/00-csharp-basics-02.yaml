@@ -30,6 +30,33 @@ sections:
       Usa `string` para texto, `int` para números enteros, `decimal` para cantidades decimales como precios y `bool` para verdadero o falso. La letra `m` indica que el número es decimal. Los valores booleanos se escriben `true` y `false`, sin comillas; al imprimirlos verás True o False.
 
       Escribe nombres claros: precio, cantidad, stock. `"12"` es texto; `12` es un número. Aunque se parezcan al mostrarlos, no sirven para las mismas operaciones.
+    realWorld:
+      - sector: Fintech
+        text: |
+          Así se vería una transacción con los mismos cuatro tipos:
+
+          ```csharp
+          string numeroCuenta = "0012-3456-78"; // texto aunque tenga dígitos
+          decimal monto = 150000.50m;           // dinero: SIEMPRE decimal
+          int cuotas = 12;                      // se cuenta en enteros
+          bool aprobada = true;                 // sí o no
+          ```
+
+          **¿Por qué decimal y no double para dinero?** `double` guarda los números en binario y no puede representar exactamente valores como 0,1: `0.1 + 0.2` da `0.30000000000000004`. En un banco, ese error multiplicado por millones de operaciones descuadra la contabilidad. `decimal` trabaja en base 10 y es exacto para montos.
+
+          El número de cuenta es `string` porque no se usa en cálculos y puede tener ceros a la izquierda o guiones; como `int`, `0012` se convertiría en `12`.
+      - sector: ERP
+        text: |
+          La ficha de un producto en un ERP de inventario tiene exactamente estos campos:
+
+          ```csharp
+          string sku = "MART-001";      // código de producto
+          int stockDisponible = 12;     // unidades en bodega
+          decimal precioUnitario = 25000m;
+          bool activo = true;           // ¿se puede seguir vendiendo?
+          ```
+
+          **Técnico:** en un ERP, los productos descontinuados **no se borran**: se marcan `activo = false`. Si los borraras, las facturas antiguas que los mencionan quedarían rotas. Un `bool` resuelve un problema real de integridad de datos.
   - id: s2
     title: "Calcula y actualiza valores"
     body: |
@@ -50,6 +77,31 @@ sections:
       Cuidado con la división de enteros: `5 / 2` produce 2. Si necesitas la parte decimal, usa un operando decimal como `5m / 2`, que produce 2,5 (o 2.5 según la configuración regional).
 
       **Hazlo tú:** vende 3 unidades de un producto de precio 15000m y stock 8. Deberías obtener un total de 45000 y un stock restante de 5.
+    realWorld:
+      - sector: Fintech
+        text: |
+          **Dividir un préstamo en cuotas.** 100000 entre 3 no es exacto:
+
+          ```csharp
+          int malo = 100000 / 3;        // 33333: ¡se pierde 1 peso!
+          decimal cuota = Math.Round(100000m / 3, 2); // 33333.33
+          decimal ultima = 100000m - cuota * 2;        // 33333.34
+          ```
+
+          Con `int` desaparece dinero sin avisar. Con `decimal` redondeas a 2 decimales y la **última cuota absorbe la diferencia** para que la suma dé exactamente 100000.
+
+          **Técnico:** `Math.Round` usa por defecto el redondeo bancario (`MidpointRounding.ToEven`): 2,5 → 2 y 3,5 → 4. Si la regulación exige redondear siempre hacia arriba en ,5, se indica con `MidpointRounding.AwayFromZero`.
+      - sector: ERP
+        text: |
+          `stock = stock - cantidad` es lo que ocurre cuando el almacén confirma un **despacho**. El total de una línea de factura también es un cálculo encadenado:
+
+          ```csharp
+          decimal subtotal = precio * cantidad;
+          decimal iva = subtotal * 0.19m;   // 19 % en Colombia; 16 % en México
+          decimal total = subtotal + iva;
+          ```
+
+          **Técnico:** en un sistema real, la tasa no se escribe en el código (*hardcode*): se guarda en una tabla de configuración de impuestos, porque cambia por país, producto y fecha.
   - id: s3
     title: "Construye mensajes con tus datos"
     body: |
@@ -67,6 +119,23 @@ sections:
       El resultado incluye Producto: Martillo, Cantidad: 2 y Total: 50000. Las llaves no aparecen en la salida: se reemplazan por el valor calculado. Sin el `$`, las llaves y el nombre serían texto literal.
 
       En el código C# los literales decimales usan punto (`12.5m`), aunque la consola pueda mostrarlos con coma según la región. Esa diferencia de presentación no cambia el valor.
+    realWorld:
+      - sector: Fintech
+        text: |
+          Las notificaciones que recibes del banco se generan con interpolación:
+
+          ```csharp
+          Console.WriteLine($"Recibiste {monto:N2} de {remitente}");
+          ```
+
+          `:N2` formatea con separador de miles y 2 decimales.
+
+          **Técnico:** el formato depende de la **cultura** (`CultureInfo`): `1.500,00` en Colombia y `1,500.00` en EE. UU. **Advertencia importante:** nunca construyas consultas SQL con interpolación (`$"... WHERE id = {id}"`): eso permite la **inyección SQL**, uno de los ataques más comunes. Para consultas se usan parámetros.
+      - sector: ERP
+        text: |
+          Los ERP generan textos a partir de datos todo el tiempo: la descripción de un asiento contable (`$"Factura {numero} - {cliente}"`), el nombre de un PDF (`$"pedido_{numero}.pdf"`) o el asunto del correo que recibe el cliente.
+
+          **Técnico:** la interpolación no cambia el valor: `precio` sigue siendo `decimal` y solo se convierte a texto para mostrarlo. Por eso se calcula con números y se formatea al final, nunca al revés.
   - id: s4
     title: "Lee un nombre y comprueba tu aprendizaje"
     body: |
@@ -81,6 +150,21 @@ sections:
       **Hazlo tú:** pide el nombre de un producto y muestra una etiqueta con ese nombre y un precio fijo de 12000m. Prueba con un nombre de una palabra, uno de varias y con una línea vacía. No intentes leer precios numéricos todavía: aprenderás a validar esos datos en el siguiente capítulo.
 
       **Antes de avanzar:** explica por qué el nombre es string, el stock es int y el precio es decimal. Después cambia los valores del ejemplo de venta y calcula la salida a mano antes de ejecutar.
+    realWorld:
+      - sector: Fintech
+        text: |
+          Todo lo que viene de afuera, como un formulario, una API o un archivo, llega como **texto** y **no es confiable**: puede venir vacío o nulo. El operador `??` se usa a diario para asignar un valor por defecto:
+
+          ```csharp
+          string moneda = solicitud.Moneda ?? "COP";
+          ```
+
+          **Técnico:** en una API, el cuerpo JSON se convierte en objetos C#. Una propiedad que no se envió queda en `null`, y el código decide si usa un valor por defecto o rechaza la petición con un error 400.
+      - sector: ERP
+        text: |
+          **Importación masiva:** el área de compras sube un CSV con 5000 precios de proveedores. Cada celda se lee como `string` y algunas vienen vacías.
+
+          **Técnico:** una celda vacía no debe detener toda la importación. Se usa un valor por defecto o se registra el error de esa fila, y el proceso continúa con las demás. En el capítulo siguiente aprenderás `TryParse` para hacerlo bien.
 cards:
   - id: c1
     front: "¿Qué significa int stock = 12;?"

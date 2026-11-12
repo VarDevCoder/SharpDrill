@@ -27,6 +27,26 @@ sections:
       El primer decimal indica el tipo del resultado. precio y cantidad son los parámetros. En la llamada, 12000m y 3 son los argumentos concretos. La salida es 36000. Declarar la función no ejecuta su cuerpo: la llamada `CalcularTotal(...)` lo hace.
 
       No confundas devolver con imprimir: `return` entrega el resultado a quien llamó; `Console.WriteLine` lo muestra en pantalla. Separarlos permite reutilizar el cálculo sin obligarte a imprimirlo.
+    realWorld:
+      - sector: Fintech
+        text: |
+          **Una sola fuente de verdad para la comisión:**
+
+          ```csharp
+          decimal CalcularComision(decimal monto)
+          {
+              return monto * 0.008m; // 0,8 %
+          }
+          ```
+
+          Si mañana la comisión cambia, modificas **un solo lugar** y no 15 copias repartidas por el código.
+
+          **Técnico:** una función que solo recibe datos y devuelve un resultado se puede probar automáticamente con pruebas unitarias (xUnit): `Assert.Equal(800m, CalcularComision(100000m));`. En fintech, las reglas de dinero **siempre** tienen pruebas.
+      - sector: ERP
+        text: |
+          Los ERP están llenos de funciones de cálculo: `CalcularIva(subtotal)`, `AplicarDescuento(precio, porcentaje)` y `CalcularRetencion(base)`.
+
+          **Técnico:** separar el cálculo de la presentación (`return` en vez de `Console.WriteLine`) permite usar la misma función en la pantalla, en el PDF de la factura y en la API, sin duplicar la regla.
   - id: s2
     title: "Funciones que hacen una tarea"
     body: |
@@ -47,6 +67,24 @@ sections:
       Las dos llamadas reutilizan las mismas instrucciones con textos distintos. Los parámetros son variables disponibles dentro de la función. Usa nombres que expliquen la tarea: MostrarTitulo o CalcularTotal, en lugar de nombres como HacerAlgo.
 
       **Hazlo tú:** escribe una función `CalcularStockRestante` que reciba stock y cantidad como int y devuelva la resta. Llama a la función con 8 y 3: debe devolver 5. Por ahora el llamador debe comprobar que la cantidad sea válida; separar funciones no elimina esa responsabilidad.
+    realWorld:
+      - sector: Fintech
+        text: |
+          **Auditoría:** los bancos están obligados a registrar quién hizo qué y cuándo. Esa tarea no devuelve nada; solo se ejecuta:
+
+          ```csharp
+          void RegistrarAuditoria(string usuario, string accion)
+          {
+              Console.WriteLine($"{DateTime.UtcNow:O} | {usuario} | {accion}");
+          }
+          ```
+
+          **Técnico:** en producción se guarda en una tabla o servicio de registro que no se puede modificar. Se usa `DateTime.UtcNow`, en UTC, para no confundir zonas horarias entre países.
+      - sector: ERP
+        text: |
+          Tareas `void` habituales en un ERP: `ImprimirEncabezadoReporte(titulo)`, `EnviarFacturaPorCorreo(cliente)` y `NotificarStockBajo(producto)`.
+
+          **Técnico:** el nombre debe decir la acción (verbo + objeto). En un código con miles de funciones, `EnviarFacturaPorCorreo` se encuentra y entiende; `Procesar2` no.
   - id: s3
     title: "Guarda varios elementos en una lista"
     body: |
@@ -65,6 +103,17 @@ sections:
       `new` crea la lista y `Add` agrega un elemento al final. `Count` indica cuántos elementos contiene: aquí 2. Los índices empiezan en cero: `productos[0]` es Martillo y `productos[1]` es Clavo. El índice 2 no existe en esta lista.
 
       Evita acceder a una posición que no existe. Antes de usar el índice cero, por ejemplo, comprueba que Count sea mayor que cero. Una lista recién creada está vacía; no contiene un primer elemento automáticamente.
+    realWorld:
+      - sector: Fintech
+        text: |
+          Los **movimientos de una cuenta** son una lista: el extracto que ves en la app es una colección ordenada de transacciones. Más adelante será `List<Transaccion>` en lugar de `List<string>`.
+
+          **Técnico:** acceder a `movimientos[movimientos.Count]` lanza `ArgumentOutOfRangeException`, porque el último índice es `Count - 1`. Este error es frecuente en código que muestra "el último movimiento".
+      - sector: ERP
+        text: |
+          Una factura o una orden de compra tiene **líneas**: cada producto comprado es un elemento de la lista. Una factura con 3 productos tiene `lineas.Count == 3`.
+
+          **Técnico:** este patrón de cabecera y detalle (*header/lines*) es la base del modelo de datos de casi todos los ERP. La cabecera tiene el cliente y la fecha; las líneas, una lista de producto, cantidad y precio.
   - id: s4
     title: "Recorre la lista y resuelve un problema pequeño"
     body: |
@@ -87,6 +136,27 @@ sections:
       **Ejercicio:** crea una lista con tres productos, muestra el título con una función void, recorre sus nombres y muestra Count al final. Ejecuta una vez con tres elementos y otra sin ningún Add. Debe funcionar también vacía.
 
       **Antes de avanzar:** explica la diferencia entre parámetro y argumento, entre return y WriteLine, y entre Count y el último índice. Ya puedes dividir una tarea grande en partes más pequeñas y comprobables.
+    realWorld:
+      - sector: Fintech
+        text: |
+          **Calcular el saldo** recorriendo los movimientos:
+
+          ```csharp
+          List<decimal> movimientos = new List<decimal> { 500000m, -120000m, -35000m };
+          decimal saldo = 0m;
+          foreach (decimal mov in movimientos)
+          {
+              saldo = saldo + mov;
+          }
+          Console.WriteLine(saldo); // 345000
+          ```
+
+          **Técnico:** con una lista vacía el saldo queda en 0 y no ocurre ningún error, el comportamiento correcto para una cuenta nueva.
+      - sector: ERP
+        text: |
+          **Reabastecimiento automático:** se recorren los productos y se detectan los que están por debajo de su **punto de reorden** para generar órdenes de compra.
+
+          **Técnico:** si intentas eliminar elementos dentro del `foreach`, como facturas anuladas, .NET lanza `InvalidOperationException`. La solución real es `lista.RemoveAll(f => f.Anulada)` o crear una lista nueva con los elementos que conservas.
 cards:
   - id: c1
     front: "¿Qué diferencia hay entre un parámetro y un argumento?"

@@ -17,6 +17,8 @@ Aprendizaje de **C# desde cero**, además de entrenamiento **senior** con **repa
 
 Desde Inicio, elige **Empiezo desde cero**, o abre `/temario?track=csharp-basics`. La ruta tiene seis capítulos ordenados, 24 secciones, 30 flashcards y 36 preguntas con explicación. No requiere conocimientos previos ni incluye ejercicios con cuenta regresiva. Los ejemplos C# se ejecutan en el equipo del estudiante; la web no incorpora un compilador C#.
 
+Cada sección incluye un recuadro **En la vida real** que conecta el concepto con casos de **fintech** y **ERP**: por qué el dinero se guarda como `decimal`, cuotas de préstamos, control de crédito, conciliación bancaria y reservas de inventario, entre otros. Cada caso tiene una explicación sencilla y una nota **Técnico**.
+
 Preparación: [SDK de .NET 10](https://dotnet.microsoft.com/download/dotnet/10.0) y [guía oficial de consola de Microsoft](https://learn.microsoft.com/es-es/dotnet/core/tutorials/with-visual-studio-code). Cada lección combina explicación, ejemplos completos, ejercicios guiados y criterios para avanzar. El proyecto final lista productos, valida ventas y actualiza stock en memoria; incluye solución y casos de prueba manuales.
 
 Los IDs `cs-start-01` a `cs-start-06` son independientes de los capítulos existentes. Las lecturas, respuestas y repasos usan la persistencia actual por usuario; no se requiere una migración de base de datos. La navegación inicial termina en el proyecto, sin saltar automáticamente al catálogo senior. Elegir un acceso desde Inicio no guarda un nivel de experiencia ni bloquea otras rutas.
@@ -172,6 +174,22 @@ Todas las rutas requieren sesión (cookie o `Authorization: Bearer`), salvo `reg
 ## Añadir contenido
 
 Cada capítulo es un YAML en `server/content/chapters/` con `track` (`csharp-basics` | `csharp` | `db` | `react` | `api` | `english`), `sections`, `cards`, `questions` y, opcionalmente, `drills`, `snippets` y `shortcuts`. Se ordenan por ruta y luego por número; los IDs deben ser únicos aunque dos rutas usen el mismo número de capítulo:
+
+Una sección puede llevar casos reales opcionales, que se muestran en un recuadro "En la vida real" debajo de la teoría y se incluyen en la búsqueda:
+
+```yaml
+sections:
+  - id: s1
+    title: "..."
+    body: |
+      ...
+    realWorld:                  # opcional; cada caso necesita sector y text (Markdown)
+      - sector: Fintech
+        text: |
+          Explicación sencilla del caso.
+
+          **Técnico:** detalle técnico.
+```
 
 ```yaml
 drills:

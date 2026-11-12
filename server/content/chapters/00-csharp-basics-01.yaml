@@ -19,6 +19,17 @@ sections:
       En esta ruta usarás una **consola**: una ventana de texto donde el programa muestra mensajes y recibe lo que escribes. Más adelante podrás construir interfaces gráficas; ahora nos interesa entender qué hace cada instrucción.
 
       Trabaja en este orden: lee una sección, ejecuta el ejemplo, cambia algo y explica qué pasó. Después marca la sección como leída y abre Práctica. No hay límite de tiempo. El código de las lecciones se ejecuta en tu equipo; SharpDrill guarda tus lecturas y tus respuestas, pero no ejecuta C# en el navegador.
+    realWorld:
+      - sector: Fintech
+        text: |
+          Una transferencia en la app de tu banco sigue el mismo esquema **datos → cálculo → resultado**: lee la cuenta destino y el monto (datos), verifica el saldo y calcula la comisión (cálculo) y muestra el comprobante (resultado).
+
+          **Técnico:** ese flujo lo ejecuta un servicio *backend*; muchos bancos y fintechs lo escriben en C# sobre .NET. Cada paso es una instrucción que se ejecuta en orden: si el cálculo de la comisión ocurriera antes de leer el monto, el resultado sería incorrecto.
+      - sector: ERP
+        text: |
+          Cuando un ERP emite una factura, toma el cliente y los productos (datos), calcula subtotal, impuestos y total (cálculo) y genera el documento electrónico (resultado).
+
+          **Técnico:** varios ERP del ecosistema Microsoft, como Dynamics 365 y Dataverse, permiten ampliar su lógica con *plugins* y servicios escritos en C#. La lógica sigue siendo una secuencia de instrucciones, como la de tu primer programa.
   - id: s2
     title: "Prepara el entorno y crea el proyecto"
     body: |
@@ -41,6 +52,17 @@ sections:
       El primero crea una carpeta y un proyecto de consola; el segundo entra en esa carpeta; el tercero compila y ejecuta el programa. Deberías ver `Hello, World!`. La primera creación puede necesitar conexión para restaurar el proyecto.
 
       Abre la carpeta MiPrimerPrograma en tu editor. El archivo **Program.cs** contiene el código inicial y el archivo terminado en **.csproj** describe el proyecto. Para estos ejercicios modificarás Program.cs. Los comandos van en la terminal, no dentro de ese archivo.
+    realWorld:
+      - sector: Fintech
+        text: |
+          Una aplicación de consola, como la que acabas de crear, puede ser el **proceso nocturno** que concilia las transacciones del día o genera el archivo de pagos que se envía al banco. No tiene pantalla; se ejecuta, hace su trabajo y termina.
+
+          **Técnico:** estos procesos *batch* se programan con un planificador (cron, el Programador de tareas de Windows, un Kubernetes CronJob o una Azure Function con temporizador). En el servidor de integración continua (CI) se ejecutan los mismos comandos que usas aquí: `dotnet build` y `dotnet test`.
+      - sector: ERP
+        text: |
+          Las integraciones entre sistemas suelen empezar como un programa de consola; por ejemplo, uno que cada hora lee los pedidos nuevos de la tienda en línea y los registra en el ERP.
+
+          **Técnico:** en un equipo, todos deben compilar con la misma versión. Por eso los proyectos fijan la versión del SDK con un archivo `global.json`. `dotnet --version` es lo primero que se revisa cuando a alguien le funciona y a otro no.
   - id: s3
     title: "Lee y cambia tu primera instrucción"
     body: |
@@ -61,6 +83,17 @@ sections:
       ```
 
       En estos ejemplos las instrucciones se ejecutan de arriba hacia abajo. No necesitas escribir una clase ni un método Main para comenzar: el proyecto de consola admite estas instrucciones directamente en Program.cs.
+    realWorld:
+      - sector: Fintech
+        text: |
+          `Console.WriteLine` es la forma más simple de **registro (log)**. En producción, los servicios escriben líneas de registro y una plataforma de monitoreo, como Application Insights, Datadog o ELK, las recoge para investigar incidentes.
+
+          **Técnico:** en fintech hay datos que **nunca** se escriben completos en un log. Por la norma PCI DSS, un número de tarjeta se enmascara, por ejemplo: `**** **** **** 4242`. Lo que imprimes también queda guardado.
+      - sector: ERP
+        text: |
+          El orden de arriba hacia abajo es una regla de negocio: primero se **reserva el stock** y después se **factura**. Si inviertes el orden, puedes facturar mercancía que no tienes.
+
+          **Técnico:** cuando varias instrucciones deben cumplirse todas o ninguna, en los sistemas reales se agrupan en una **transacción** de base de datos. Lo verás en las rutas de EF Core y PL/SQL.
   - id: s4
     title: "Tu primer cambio y tu primer error"
     body: |
@@ -76,6 +109,19 @@ sections:
       ```
 
       **Antes de avanzar:** deberías poder crear el proyecto, cambiar un mensaje y ejecutarlo sin copiar todos los pasos. Marca las secciones que ya trabajaste y responde las preguntas de Práctica sin apuro.
+    realWorld:
+      - sector: En el equipo
+        text: |
+          En una empresa, el código que no compila **no llega a producción**. Cada *Pull Request* pasa por un *pipeline* (GitHub Actions o Azure DevOps) que ejecuta `dotnet build`; si falla, el cambio queda bloqueado. Leer el **primer** error y corregir una cosa por vez es una habilidad que usarás todos los días.
+      - sector: ERP
+        text: |
+          Los comentarios son útiles para explicar **por qué** existe una regla, sobre todo si es fiscal:
+
+          ```csharp
+          // Regla fiscal: el IVA se redondea por línea, no sobre el total de la factura.
+          ```
+
+          **Técnico:** la facturación electrónica (DIAN en Colombia, SAT en México, SII en Chile) tiene reglas de redondeo y formato. Un comentario así evita que otra persona "simplifique" el código y genere facturas rechazadas.
 cards:
   - id: c1
     front: "¿Qué diferencia hay entre C# y .NET?"

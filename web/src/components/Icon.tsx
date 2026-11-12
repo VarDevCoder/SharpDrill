@@ -13,6 +13,7 @@ const paths = {
   sun: 'M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5',
   moon: 'M21 13A9 9 0 0 1 11 3a9 9 0 1 0 10 10Z',
   check: 'm5 12 4 4L19 6',
+  briefcase: 'M3 7h18v13H3ZM9 7V4h6v3M3 13h18',
   close: 'm6 6 12 12M6 18 18 6',
   warning: 'm12 3 10 18H2ZM12 9v5m0 3v.1',
   question: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM9 9a3 3 0 0 1 6 0c0 2-3 2-3 5m0 3v.1',

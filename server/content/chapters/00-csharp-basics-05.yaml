@@ -32,6 +32,26 @@ sections:
       ```
 
       Nombre, Precio y Stock son **propiedades**. `get` permite leer y `set` asignar. `public` permite acceder desde el código que usa el objeto. El `= ""` da un valor inicial no nulo al nombre; los valores numéricos empiezan en cero. El punto en `martillo.Nombre` accede a un miembro de ese objeto.
+    realWorld:
+      - sector: Fintech
+        text: |
+          Los conceptos del negocio se convierten en clases:
+
+          ```csharp
+          class Cuenta
+          {
+              public string Numero { get; set; } = "";
+              public string Titular { get; set; } = "";
+              public decimal Saldo { get; set; }
+          }
+          ```
+
+          **Técnico:** estas clases se llaman **entidades del dominio**. Con Entity Framework Core, cada clase se asocia a una tabla de la base de datos y cada propiedad, a una columna. La clase `Producto` de esta lección también sería una tabla en un sistema real.
+      - sector: ERP
+        text: |
+          Los **datos maestros** de un ERP son clases: `Cliente`, `Proveedor`, `Producto` y `Bodega`. Los **documentos** también lo son: `Factura`, `Pedido` y `OrdenDeCompra`.
+
+          **Técnico:** cuando lees "el maestro de clientes" en un proyecto ERP, piensa en una clase `Cliente` con propiedades como NIT o RFC, razón social y cupo de crédito, y en una tabla con una fila por cliente.
   - id: s2
     title: "Una clase, varios objetos"
     body: |
@@ -54,6 +74,24 @@ sections:
       La salida es 9 y 100: cambiar un objeto no cambia el otro. Pero asignar `Producto otro = martillo;` no crea un producto nuevo: ambos nombres apuntan al mismo objeto. Necesitas otro `new` para crear una instancia independiente.
 
       **Hazlo tú:** crea dos productos distintos, cambia el nombre del primero y muestra ambos. Después prueba la asignación otro = martillo y comprueba qué pasa si modificas otro.Nombre. Este pequeño experimento prepara la idea de referencias sin entrar aún en detalles de memoria.
+    realWorld:
+      - sector: Fintech
+        text: |
+          **El error de referencia en un simulador:** quieres mostrar "¿cómo quedaría tu saldo si pagas esta deuda?":
+
+          ```csharp
+          Cuenta simulada = cuentaReal;   // ¡NO es una copia!
+          simulada.Saldo -= 200000m;      // también cambia cuentaReal
+          ```
+
+          Acabas de modificar los datos reales del cliente en una simulación.
+
+          **Técnico:** las clases son **tipos por referencia**. Para simular necesitas un objeto nuevo (`new Cuenta { Saldo = cuentaReal.Saldo }`) o un `record` con `with`, que verás en la ruta de C# moderno.
+      - sector: ERP
+        text: |
+          **"Duplicar pedido"** es una función habitual en un ERP. Si se implementa como `Pedido copia = original;`, al editar la copia también cambias el pedido original del cliente.
+
+          **Técnico:** duplicar exige un `new Pedido { ... }` y copiar los valores, incluida una lista **nueva** de líneas. Si no, ambos pedidos compartirían las mismas líneas.
   - id: s3
     title: "Pon una acción dentro del producto"
     body: |
@@ -85,6 +123,31 @@ sections:
       La salida es True, 3, False y 3. El primer return termina el método inmediatamente si la venta es inválida. Así no se descuenta stock en ese caso. Cada objeto ejecuta el método con su propio stock.
 
       Este modelo es deliberadamente sencillo: como Stock tiene un set público, otro código aún podría asignar un negativo. Aquí controlamos las entradas y usamos IntentarVender; proteger todas las modificaciones es un siguiente paso de diseño.
+    realWorld:
+      - sector: Fintech
+        text: |
+          **La cuenta protege su propio saldo.** En lugar de permitir que cualquier parte del programa cambie `Saldo`, la clase ofrece un método que valida:
+
+          ```csharp
+          class Cuenta
+          {
+              public decimal Saldo { get; private set; }
+
+              public bool IntentarRetirar(decimal monto)
+              {
+                  if (monto <= 0 || monto > Saldo) return false;
+                  Saldo -= monto;
+                  return true;
+              }
+          }
+          ```
+
+          **Técnico:** `private set` impide escribir `cuenta.Saldo = -1000` desde afuera. Esto es **encapsulamiento**: la regla de negocio vive en un solo lugar y no se puede saltar.
+      - sector: ERP
+        text: |
+          `IntentarVender` es, literalmente, la **reserva de inventario** de un ERP: valida y descuenta en una sola operación.
+
+          **Técnico:** el patrón `bool IntentarX(...)` (en inglés, `TryX`, como `TryParse`) se usa cuando fallar es un caso normal del negocio, como no tener stock. Para esos casos se devuelve `false` en lugar de lanzar una excepción.
   - id: s4
     title: "Errores de compilación, entradas inválidas y excepciones"
     body: |
@@ -110,6 +173,20 @@ sections:
       Para las cantidades que pide nuestro inventario usaremos TryParse, que es más directo para entradas inválidas esperables. No uses un catch vacío para ocultar problemas.
 
       **Antes de avanzar:** comprueba que IntentarVender rechace cero, negativos y cantidades superiores al stock, y que acepte vender todo el stock disponible sin dejarlo negativo.
+    realWorld:
+      - sector: Fintech
+        text: |
+          Distingue los dos tipos de problemas:
+
+          - **Saldo insuficiente** es una **regla de negocio**: se valida con `if` y se responde "fondos insuficientes".
+          - **La pasarela de pagos no responde** es una **excepción**: se captura `HttpRequestException` o `TimeoutException`, se registra y se responde "intenta más tarde" **sin cobrar**.
+
+          **Técnico:** nunca escribas `catch { }` vacío en código de dinero. Ocultar un error puede dejar un pago a medias sin que nadie se entere.
+      - sector: ERP
+        text: |
+          **Conciliación bancaria:** el ERP importa el extracto que envía el banco. Si una línea viene dañada, `decimal.Parse` lanza `FormatException`.
+
+          **Técnico:** se captura la excepción **por línea**, se registra cuál falló y se continúa con las demás. El contador revisa después solo las líneas con error, sin perder el resto del archivo.
 cards:
   - id: c1
     front: "¿Qué diferencia hay entre clase y objeto?"

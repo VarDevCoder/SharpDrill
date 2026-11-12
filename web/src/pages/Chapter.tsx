@@ -89,6 +89,17 @@ function Theory({ ch }: { ch: ChapterDetail }) {
         <section className="card lesson" id={`sec-${s.id}`} key={s.id}>
           <h2><span className="muted">{ch.number}.{i + 1}</span> {s.title}</h2>
           <Markdown source={s.body} lang={ch.track === 'csharp' || beginner ? 'csharp' : 'text'} />
+          {s.realWorld && s.realWorld.length > 0 && (
+            <aside className="real-world" aria-label="Casos de la vida real">
+              <h3><Icon name="briefcase" /> En la vida real</h3>
+              {s.realWorld.map((c, k) => (
+                <div className="rw-case" key={k}>
+                  <span className="rw-tag">{c.sector}</span>
+                  <Markdown source={c.text} lang="csharp" />
+                </div>
+              ))}
+            </aside>
+          )}
           <div className="lesson-foot">
             <label className="toggle"><input type="checkbox" checked={read.has(s.id)} onChange={(e) => toggle(s.id, e.target.checked)} /> Marcar como leída</label>
           </div>

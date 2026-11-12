@@ -37,6 +37,10 @@ export function validateChapter(ch, file = '?') {
   for (const s of ch.sections ?? []) {
     uniq(s.id, 'sección');
     if (!s.title || !s.body) at(`sección ${s.id} sin title/body`);
+    if (s.realWorld !== undefined) {
+      if (!Array.isArray(s.realWorld) || s.realWorld.length === 0) at(`sección ${s.id}: realWorld debe ser una lista no vacía`);
+      else for (const c of s.realWorld) if (!c?.sector || !c?.text) at(`sección ${s.id}: cada caso de realWorld necesita sector y text`);
+    }
   }
   for (const c of ch.cards ?? []) {
     uniq(c.id, 'tarjeta');

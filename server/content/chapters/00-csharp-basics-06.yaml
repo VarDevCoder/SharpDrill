@@ -24,6 +24,17 @@ sections:
       ```
 
       Usa como datos iniciales Martillo a 25000m con stock 10 y Clavo a 500m con stock 100. **Los datos de este programa viven en memoria:** al cerrarlo y abrirlo vuelven a esos valores. Eso es distinto del progreso de aprendizaje que SharpDrill guarda en tu cuenta.
+    realWorld:
+      - sector: ERP
+        text: |
+          Este proyecto es un **mini módulo de inventario** de un ERP: "Listar" es la consulta de existencias y "Vender" es una salida de inventario.
+
+          **Técnico:** las reglas "solo vender si existe, si la cantidad es positiva y si alcanza el stock" son **reglas de negocio**. En una empresa, un analista funcional las escribe como **criterios de aceptación** en una historia de usuario, en Jira o Azure DevOps, antes de programar.
+      - sector: Fintech
+        text: |
+          Si cambias "producto" por "cuenta" y "vender" por "retirar", tienes la base de un **core bancario**: listar cuentas, retirar y salir, con las mismas validaciones (que la cuenta exista, que el monto sea positivo y que haya saldo).
+
+          **Técnico:** la lógica es la misma; cambian las entidades. Por eso aprender bien este patrón sirve en cualquier industria.
   - id: s2
     title: "Constrúyelo en pasos pequeños"
     body: |
@@ -39,6 +50,12 @@ sections:
       **Pistas:** la pantalla puede numerar los productos desde 1, pero la lista empieza en 0. Después de comprobar el rango, usa `numero - 1` como índice. `break` sale del bucle y `continue` salta a la siguiente vuelta. Si la entrada termina, ReadLine devuelve null: trata ese caso como salir para evitar un bucle que repita mensajes indefinidamente.
 
       Si te trabas, implementa primero Listar y Salir. Luego añade la venta. Un programa pequeño que ya funciona es más fácil de ampliar que uno enorme que aún no compila.
+    realWorld:
+      - sector: En el equipo
+        text: |
+          Trabajar en pasos pequeños que compilan es exactamente cómo trabajan los equipos profesionales: **commits pequeños** y *Pull Requests* cortos que otra persona puede revisar en 10 minutos.
+
+          **Técnico:** si cada paso compila y funciona, cuando algo se rompe sabes que fue el último cambio. Con `git bisect` se puede incluso encontrar automáticamente el commit que introdujo un error.
   - id: s3
     title: "Solución de referencia completa"
     body: |
@@ -126,6 +143,21 @@ sections:
       ```
 
       La función local ListarProductos usa la lista declarada en el mismo contexto. La variable elegido apunta al objeto de la lista: al vender, su nuevo stock también se ve cuando vuelves a listar. El menú se repite hasta que break termina el while.
+    realWorld:
+      - sector: ERP
+        text: |
+          ¿Qué cambia en un sistema real?
+
+          - La `List<Producto>` en memoria se reemplaza por una **base de datos** (SQL Server u Oracle, con EF Core).
+          - El menú de consola se reemplaza por una **API REST** y una pantalla web.
+          - La venta se hace dentro de una **transacción** para que dos vendedores no vendan la misma última unidad al mismo tiempo.
+
+          **Técnico:** la lógica de `IntentarVender` sigue igual. Lo que aprendiste aquí es el núcleo; lo demás es infraestructura.
+      - sector: Fintech
+        text: |
+          El mismo problema de la "última unidad" existe en un banco: **dos retiros simultáneos** sobre el mismo saldo. Si ambos leen el saldo de 100000 antes de que el otro lo descuente, los dos pueden aprobarse.
+
+          **Técnico:** se resuelve con bloqueos o control de concurrencia en la base de datos (`SELECT ... FOR UPDATE` o versiones de fila). Lo verás en los capítulos de Concurrencia y PL/SQL.
   - id: s4
     title: "Comprueba el resultado y decide qué sigue"
     body: |
@@ -148,6 +180,17 @@ sections:
       Has terminado esta introducción cuando puedes ejecutar el programa, explicar sus decisiones, modificar un producto y superar las comprobaciones. Las preguntas de SharpDrill evalúan conceptos; la ejecución y estas pruebas las haces en tu equipo.
 
       **Siguiente etapa:** practica más con colecciones, archivos, pruebas y depuración; después sigue con SQL y APIs. El catálogo C# y .NET contiene profundización senior: puedes explorarlo, pero completar esta ruta inicial no significa dominar ya esos temas. Puedes volver aquí para repasar las bases cuando lo necesites.
+    realWorld:
+      - sector: En el equipo
+        text: |
+          La tabla de comprobaciones es un **plan de pruebas**: caso, entrada y resultado esperado. Es el documento que escribe el equipo de QA en una empresa, y también lo que se usa en las **pruebas de aceptación (UAT)**, cuando el usuario del ERP valida el sistema antes de que salga a producción.
+
+          **Técnico:** el siguiente paso profesional es **automatizar** esa tabla con xUnit, para que se ejecute sola en cada cambio.
+      - sector: Fintech
+        text: |
+          Los casos frontera de la tabla (cero, negativo, texto y "vender todo") son justamente los que causan **incidentes reales** en fintech: montos negativos que suman dinero, redondeos que pierden centavos o entradas vacías que bloquean un proceso.
+
+          **Técnico:** un buen desarrollador no prueba solo el caso feliz. Prueba los bordes primero, porque ahí suelen estar los errores.
 cards:
   - id: c1
     front: "¿Por qué la opción de producto 1 corresponde a productos[0]?"
