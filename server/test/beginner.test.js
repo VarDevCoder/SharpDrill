@@ -82,6 +82,8 @@ test('C# inicial: API aislada, progreso persistente entre reinicios y por cuenta
   assert.deepEqual(saved.chapter.readSections, ['s1']);
   assert.equal(saved.chapter.seen, 2);
   assert.ok(saved.chapter.mastery > 0);
+  // 1 sección + 2 elementos de 4 secciones + 5 tarjetas + 6 preguntas = 3/15
+  assert.equal(saved.chapter.completion, 20);
   const stats = await request('GET', '/stats', first.token);
   assert.equal(stats.totals.attempts, 2);
   assert.equal(stats.tracks.find((track) => track.id === 'csharp-basics').chapters, 6);
@@ -91,4 +93,16 @@ test('C# inicial: API aislada, progreso persistente entre reinicios y por cuenta
   assert.deepEqual(isolated.chapter.readSections, []);
   assert.equal(isolated.chapter.seen, 0);
   assert.equal(isolated.chapter.mastery, 0);
+  assert.equal(isolated.chapter.completion, 0);
+
+  // Terminar todo el capítulo una vez = 100 % completado, aunque el dominio (memoria a largo plazo) siga bajo
+  const ch1 = basics[0];
+  for (const sec of ch1.sections) await request('POST', `/chapters/${ch1.id}/sections/${sec.id}/read`, second.token, { read: true });
+  for (const c of ch1.cards) await request('POST', '/review/card', second.token, { itemId: `${ch1.id}.${c.id}`, grade: 2 });
+  for (const q of ch1.questions) await request('POST', '/review/answer', second.token, { itemId: `${ch1.id}.${q.id}`, answer: q.answer });
+  const done = (await request('GET', `/chapters/${ch1.id}`, second.token)).chapter;
+  assert.equal(done.completion, 100);
+  assert.ok(done.mastery > 0 && done.mastery < 100);
+  const doneStats = await request('GET', '/stats', second.token);
+  assert.ok(doneStats.tracks.find((track) => track.id === 'csharp-basics').completion > 0);
 });

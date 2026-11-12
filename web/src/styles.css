@@ -273,6 +273,7 @@ label.toggle, label.chip { flex-direction: row; align-items: center; margin: 0; 
 .check.on { color: var(--ok); }
 .objectives ul { margin: 0; padding-left: 1.2rem; }
 .lesson h2 { font-size: 1.3rem; }
+.chapter-meta .done { color: var(--ok); font-weight: 600; }
 .real-world { margin: 16px 0 12px; padding: 14px 16px; border: 1px solid var(--border); border-left: 4px solid var(--ok); border-radius: var(--radius); background: var(--ok-soft); }
 .real-world h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 1rem; color: var(--ok); }
 .rw-case + .rw-case { border-top: 1px dashed var(--border); margin-top: 12px; padding-top: 12px; }

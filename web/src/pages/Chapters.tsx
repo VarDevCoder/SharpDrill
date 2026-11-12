@@ -44,9 +44,10 @@ export function ChaptersPage() {
                   <h3>{c.title}</h3>
                   <span className="tag">{c.level}</span>
                   <p className="muted">{c.summary}</p>
-                  <ProgressBar value={c.mastery} label="Dominio del capítulo" />
+                  <ProgressBar value={c.completion} label="Capítulo completado" />
                   <div className="chapter-meta small muted">
-                    <span>{c.mastery}%</span>
+                    <span className={c.completion === 100 ? 'done' : undefined} title="Secciones leídas y ejercicios practicados al menos una vez">{c.completion === 100 ? <><Icon name="check" /> Completado</> : `${c.completion}% completado`}</span>
+                    {c.seen > 0 && <span title="Cuánto recuerdas a largo plazo. Sube a medida que repasas con el paso de los días.">Dominio {c.mastery}%</span>}
                     <span title="Secciones leídas"><span className="sr-only">Secciones leídas: </span><Icon name="book" /> {c.sectionsRead}/{c.sections}</span>
                     <span title="Flashcards"><span className="sr-only">Flashcards: </span><Icon name="cards" /> {c.cards}</span>
                     <span title="Preguntas"><span className="sr-only">Preguntas: </span><Icon name="question" /> {c.questions}</span>

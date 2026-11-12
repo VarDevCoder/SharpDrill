@@ -38,14 +38,19 @@ export function createProgress(repo, content) {
       const mine = reviews.filter((r) => r.itemId.startsWith(prefix));
       const total = ch.cards.length + ch.questions.length + ch.drills.length;
       const m = mine.reduce((acc, r) => acc + mastery(r), 0) / (total || 1);
+      // Completado: secciones leídas + elementos practicados al menos una vez (solo los que siguen existiendo)
+      const sectionIds = new Set(ch.sections.map((s) => s.id));
+      const sectionsRead = read.filter((r) => r.chapterId === ch.id && sectionIds.has(r.sectionId)).length;
+      const practiced = mine.filter((r) => content.items.has(r.itemId)).length;
+      const steps = ch.sections.length + total;
       return {
         id: ch.id, number: ch.number, title: ch.title, summary: ch.summary, level: ch.level, track: ch.track,
         sections: ch.sections.length, cards: ch.cards.length, questions: ch.questions.length,
         drills: ch.drills.length, snippets: ch.snippets.length,
-        sectionsRead: read.filter((r) => r.chapterId === ch.id).length,
-        seen: mine.length, total,
+        sectionsRead, seen: practiced, total,
         due: mine.filter((r) => r.dueAt <= nowIso).length,
         mastery: Math.round(m * 100),
+        completion: Math.floor(((sectionsRead + practiced) / (steps || 1)) * 100),
       };
     });
   }

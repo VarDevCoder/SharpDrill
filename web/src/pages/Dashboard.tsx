@@ -14,7 +14,7 @@ export function DashboardPage() {
   if (error || !s) return <ErrorBox error={error ?? new Error('Sin datos')} onRetry={reload} />;
 
   const goal = Math.min(1, s.today / (s.dailyGoal || 1));
-  const unfinished = s.chapters.filter((c) => c.sectionsRead < c.sections || c.mastery < 60);
+  const unfinished = s.chapters.filter((c) => c.completion < 100);
   const next = unfinished.find((c) => c.sectionsRead > 0 || c.seen > 0) ?? unfinished[0] ?? s.chapters[0];
   const basics = s.chapters.filter((c) => c.track === 'csharp-basics');
   const nextBasic = basics.find((c) => c.sectionsRead < c.sections) ?? basics[basics.length - 1];
@@ -67,8 +67,8 @@ export function DashboardPage() {
         {s.tracks.map((t) => (
           <Link key={t.id} className={`card track track-${t.id}`} to={`/temario?track=${t.id}`}>
             <span className="track-icon" aria-hidden="true"><Icon name={TRACK_ICON[t.id] ?? 'book'} /></span>
-            <div><strong>{t.title}</strong><ProgressBar value={t.mastery} label={`Dominio ${t.title}`} />
-              <span className="small muted">{t.mastery}% · {plural(t.chapters, 'capítulo', 'capítulos')}</span></div>
+            <div><strong>{t.title}</strong><ProgressBar value={t.completion} label={`Avance ${t.title}`} />
+              <span className="small muted">{t.completion}% completado · dominio {t.mastery}% · {plural(t.chapters, 'capítulo', 'capítulos')}</span></div>
           </Link>
         ))}
       </section>
@@ -79,8 +79,8 @@ export function DashboardPage() {
             <span className="eyebrow">Continuar</span>
             <h2>Capítulo {next.number}: {next.title}</h2>
             <p className="muted">{next.summary}</p>
-            <ProgressBar value={next.mastery} label="Dominio" />
-            <p className="small muted">{next.mastery}% dominio · {next.sectionsRead}/{next.sections} secciones leídas</p>
+            <ProgressBar value={next.completion} label="Capítulo completado" />
+            <p className="small muted">{next.completion}% completado · {next.sectionsRead}/{next.sections} secciones leídas · dominio {next.mastery}%</p>
           </div>
           <div className="col">
             <Link className="btn" to={`/capitulo/${next.id}`}>Abrir capítulo</Link>

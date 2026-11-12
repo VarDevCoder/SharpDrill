@@ -11,7 +11,7 @@ export interface SrsState { ease: number; interval: number; reps: number; lapses
 export interface ChapterSummary {
   id: string; number: number; title: string; summary: string; level: string; track: TrackId;
   sections: number; cards: number; questions: number; drills: number; snippets: number;
-  sectionsRead: number; seen: number; total: number; due: number; mastery: number;
+  sectionsRead: number; seen: number; total: number; due: number; mastery: number; completion: number;
 }
 
 export interface RealWorldCase { sector: string; text: string }
@@ -54,7 +54,7 @@ export interface Stats {
   forecast: { day: string; count: number }[];
   byMode: { mode: string; count: number; accuracy: number | null }[];
   chapters: (ChapterSummary & { attempts: number; accuracy: number | null })[];
-  tracks: (Track & { chapters: number; mastery: number })[];
+  tracks: (Track & { chapters: number; mastery: number; completion: number })[];
   weak: { id: string; chapterId: string; kind: string; lapses: number; lastGrade: number; text: string }[];
 }
 

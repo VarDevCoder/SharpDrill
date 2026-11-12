@@ -83,7 +83,8 @@ export default function statsRoutes({ repo, content, progress }) {
       }),
       tracks: Object.values(content.tracks).map((t) => {
         const cs = summaries.filter((c) => c.track === t.id);
-        return { ...t, chapters: cs.length, mastery: Math.round(cs.reduce((s, c) => s + c.mastery, 0) / (cs.length || 1)) };
+        const avg = (k) => Math.round(cs.reduce((s, c) => s + c[k], 0) / (cs.length || 1));
+        return { ...t, chapters: cs.length, mastery: avg('mastery'), completion: avg('completion') };
       }),
       weak,
     });

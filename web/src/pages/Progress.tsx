@@ -18,7 +18,8 @@ export function ProgressPage() {
 
   return (
     <>
-      <header className="page-head"><h1>Progreso</h1><p className="muted">Tu memoria, medida.</p></header>
+      <header className="page-head"><h1>Progreso</h1><p className="muted">Tu memoria, medida.</p>
+        <p className="small muted"><strong>Completado</strong>: secciones leídas y ejercicios practicados al menos una vez. <strong>Dominio</strong>: cuánto recuerdas a largo plazo; sube cuando repasas en días distintos y llega a 100 % cuando recuerdas cada elemento después de unas 3 semanas.</p></header>
       <section className="stats-row cards-row">
         <div className="card stat"><span className="stat-n">{overall}%</span><span className="stat-l">dominio del curso</span></div>
         <div className="card stat"><span className="stat-n">{seen}/{total}</span><span className="stat-l">elementos vistos</span></div>
@@ -29,7 +30,7 @@ export function ProgressPage() {
         {s.tracks.map((t) => (
           <div key={t.id} className={`card track track-${t.id}`}>
             <span className="track-icon" aria-hidden="true"><Icon name={TRACK_ICON[t.id] ?? 'book'} /></span>
-            <div><strong>{t.title}</strong><ProgressBar value={t.mastery} label={t.title} /><span className="small muted">{t.mastery}%</span></div>
+            <div><strong>{t.title}</strong><ProgressBar value={t.completion} label={`Avance ${t.title}`} /><span className="small muted">{t.completion}% completado · dominio {t.mastery}%</span></div>
           </div>
         ))}
       </section>
@@ -50,10 +51,11 @@ export function ProgressPage() {
       </section>
       <section className="card">
         <h2>Por capítulo</h2>
-        <div className="table-wrap"><table className="chapters-table"><thead><tr><th>Capítulo</th><th>Dominio</th><th>Vistos</th><th>Precisión</th><th>Pendientes</th></tr></thead><tbody>
+        <div className="table-wrap"><table className="chapters-table"><thead><tr><th>Capítulo</th><th>Completado</th><th>Dominio</th><th>Vistos</th><th>Precisión</th><th>Pendientes</th></tr></thead><tbody>
           {s.chapters.map((c) => (
             <tr key={c.id}>
               <td><Link to={`/capitulo/${c.id}`}>{c.number}. {c.title}</Link></td>
+              <td className="w-bar"><ProgressBar value={c.completion} label="Completado" /><span className="small muted">{c.completion}%</span></td>
               <td className="w-bar"><ProgressBar value={c.mastery} label="Dominio" /><span className="small muted">{c.mastery}%</span></td>
               <td>{c.seen}/{c.total}</td>
               <td>{c.accuracy === null ? '—' : `${c.accuracy}%`}</td>
