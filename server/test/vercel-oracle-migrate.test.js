@@ -68,7 +68,7 @@ test('Función de Vercel sin BD configurada: health 200 y API 503 con instruccio
     assert.equal(h.chapters, 20);
     const r = await fetch(`${base}/api/chapters`);
     assert.equal(r.status, 503);
-    assert.match((await r.json()).error, /DB_CLIENT=oracle/);
+    assert.match((await r.json()).error, /TURSO_DATABASE_URL/);
   } finally {
     server.close();
   }

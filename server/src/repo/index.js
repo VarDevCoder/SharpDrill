@@ -1,9 +1,17 @@
 /**
- * Fábrica de repositorios. DB_CLIENT=sqlite (por defecto) | oracle
+ * Fábrica de repositorios. DB_CLIENT=sqlite (por defecto) | turso | oracle. Si existe TURSO_DATABASE_URL, turso es el valor por defecto.
  * El repositorio Oracle delega la lógica de escritura en paquetes PL/SQL (db/oracle/).
  */
+export function dbClient(env = process.env) {
+  return (env.DB_CLIENT ?? (env.TURSO_DATABASE_URL ? 'turso' : 'sqlite')).toLowerCase();
+}
+
 export async function createRepo(env = process.env) {
-  const client = (env.DB_CLIENT ?? 'sqlite').toLowerCase();
+  const client = dbClient(env);
+  if (client === 'turso') {
+    const { createTursoRepo } = await import('./turso.js');
+    return createTursoRepo({ url: env.TURSO_DATABASE_URL, authToken: env.TURSO_AUTH_TOKEN });
+  }
   if (client === 'oracle') {
     const { createOracleRepo } = await import('./oracle.js');
     return createOracleRepo({

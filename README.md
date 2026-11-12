@@ -87,13 +87,19 @@ sqlplus sharpdrill/<pwd>@//host:1521/SERVICIO @db/oracle/install.sql
 DB_CLIENT=oracle ORACLE_USER=sharpdrill ORACLE_PASSWORD=... ORACLE_CONNECT_STRING=host:1521/SERVICIO npm start
 ```
 
-Variables de entorno: `PORT`, `DB_CLIENT` (`sqlite` | `oracle`), `DB_FILE`, `ORACLE_USER`, `ORACLE_PASSWORD`, `ORACLE_CONNECT_STRING`, `ORACLE_POOL_MAX`, `DRILL_SECRET` (clave HMAC de los tickets de drill, obligatoria con varias réplicas) y `SECURE_COOKIES=1` (detrás de HTTPS).
+Variables de entorno: `PORT`, `DB_CLIENT` (`sqlite` | `turso` | `oracle`), `DB_FILE`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `ORACLE_USER`, `ORACLE_PASSWORD`, `ORACLE_CONNECT_STRING`, `ORACLE_POOL_MAX`, `DRILL_SECRET` (clave HMAC de los tickets de drill, obligatoria con varias réplicas) y `SECURE_COOKIES=1` (detrás de HTTPS).
 
-## Despliegue en Vercel (+ Oracle Autonomous Database)
+## Despliegue en Vercel (+ Turso u Oracle Autonomous Database)
 
 `vercel.json` ya configura todo: build con `npm run build`, salida en `web/dist` y la API Express como función serverless (`api/index.js`) con reescrituras para `/api/*` y para las rutas del SPA.
 
-Vercel **no tiene disco persistente**: cada instancia de la función tendría su propia SQLite y se borraría al reciclarse. Por eso, en Vercel la app exige Oracle. Sin Oracle, el frontend carga, pero la API responde 503 y el login muestra el aviso "Base de datos no configurada".
+Vercel **no tiene disco persistente**: cada instancia de la función tendría su propia SQLite y se borraría al reciclarse. Por eso, en Vercel la app exige una base externa: Turso u Oracle. Sin ella, el frontend carga, pero la API responde 503 y el login muestra el aviso "Base de datos no configurada".
+
+### Opción rápida: Turso (SQLite alojado, gratis, sin tarjeta)
+
+En Vercel → *Storage → Create Database → Turso*, crea la base y conéctala al proyecto. La integración define `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN`; con eso la app usa Turso automáticamente (`server/src/repo/turso.js`) y crea las tablas en la primera petición. **Redeploy** y `/api/health` debe devolver `"db":"turso"`.
+
+### Opción Oracle
 
 1. **Crea una Autonomous Database gratuita** (Oracle Cloud *Always Free*, tipo *Transaction Processing*).
 2. En la base de datos, **Network → Access control list**: permite `0.0.0.0/0` (las IP de Vercel son dinámicas) y marca *Mutual TLS (mTLS) authentication: Not required*. Así no necesitas wallet.

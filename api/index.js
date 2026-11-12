@@ -1,7 +1,7 @@
 // Función serverless de Vercel: envuelve la API Express. vercel.json reescribe /api/* hacia aquí
 // (req.url conserva la ruta original, así que las rutas de Express funcionan igual que en local).
 import { loadContent } from '../server/src/content.js';
-import { createRepo } from '../server/src/repo/index.js';
+import { createRepo, dbClient } from '../server/src/repo/index.js';
 import { createApp } from '../server/src/app.js';
 
 let appPromise = null;
@@ -10,7 +10,7 @@ let appPromise = null;
 function getApp() {
   appPromise ??= (async () => {
     const content = loadContent();
-    if ((process.env.DB_CLIENT ?? '').toLowerCase() !== 'oracle') return notConfigured(content);
+    if (dbClient() === 'sqlite') return notConfigured(content);
     const repo = await createRepo(process.env);
     return createApp({ repo, content, secureCookies: true, staticDir: '/nonexistent' });
   })().catch((e) => {
@@ -33,7 +33,7 @@ function notConfigured(content) {
     }
     res.statusCode = 503;
     res.end(JSON.stringify({
-      error: 'Base de datos no configurada en este despliegue. Define DB_CLIENT=oracle, ORACLE_USER, ORACLE_PASSWORD y ORACLE_CONNECT_STRING en Vercel (ver README → Despliegue en Vercel).',
+      error: 'Base de datos no configurada en este despliegue. Conecta una base Turso (TURSO_DATABASE_URL y TURSO_AUTH_TOKEN) o define las variables de Oracle en Vercel (ver README → Despliegue en Vercel).',
     }));
   };
 }

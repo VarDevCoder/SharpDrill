@@ -51,8 +51,7 @@ export function LoginPage() {
         {dbMissing && (
           <div className="feedback ko" role="alert">
             <strong>Base de datos no configurada</strong>
-            <p className="small">Este despliegue aún no tiene Oracle conectado. Define <code>DB_CLIENT=oracle</code>, <code>ORACLE_USER</code>,
-              <code>ORACLE_PASSWORD</code> y <code>ORACLE_CONNECT_STRING</code> en Vercel y vuelve a desplegar.</p>
+            <p className="small">Este despliegue aún no tiene base de datos. Conecta Turso en Vercel (<code>TURSO_DATABASE_URL</code> y <code>TURSO_AUTH_TOKEN</code>) y vuelve a desplegar.</p>
           </div>
         )}
         <div className="tabs small" role="tablist">

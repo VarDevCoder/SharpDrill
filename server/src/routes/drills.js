@@ -11,12 +11,13 @@ import { chapterFilter, clampInt, shuffle } from './review.js';
  * que contiene la hora de inicio; al entregar, el tiempo se calcula en el servidor.
  */
 /**
- * Clave HMAC: DRILL_SECRET si existe; si no, una derivada de ORACLE_PASSWORD (estable entre instancias
+ * Clave HMAC: DRILL_SECRET si existe; si no, una derivada de ORACLE_PASSWORD o TURSO_AUTH_TOKEN (estable entre instancias
  * serverless); y en local, aleatoria por proceso.
  */
 export function defaultDrillSecret(env = process.env) {
   if (env.DRILL_SECRET) return env.DRILL_SECRET;
-  if (env.ORACLE_PASSWORD) return createHash('sha256').update(`sharpdrill-drill:${env.ORACLE_PASSWORD}`).digest('hex');
+  const seed = env.ORACLE_PASSWORD ?? env.TURSO_AUTH_TOKEN;
+  if (seed) return createHash('sha256').update(`sharpdrill-drill:${seed}`).digest('hex');
   return randomBytes(32).toString('hex');
 }
 
