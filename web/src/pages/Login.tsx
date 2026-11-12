@@ -7,6 +7,7 @@ import { useToast } from '../components/Toast';
 export function LoginPage() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const { setUser } = useAuth();
   const toast = useToast();
@@ -60,8 +61,14 @@ export function LoginPage() {
         </div>
         {mode === 'register' && <label>Nombre <input name="name" value={form.name} onChange={set('name')} autoComplete="name" required minLength={2} maxLength={60} /></label>}
         <label>Email <input name="email" type="email" value={form.email} onChange={set('email')} autoComplete="email" required /></label>
-        <label>Contraseña <input name="password" type="password" value={form.password} onChange={set('password')}
-          autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={mode === 'register' ? 8 : 1} /></label>
+        <label>Contraseña
+          <span className="pw-field">
+            <input name="password" type={showPw ? 'text' : 'password'} value={form.password} onChange={set('password')}
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={mode === 'register' ? 8 : 1} />
+            <button type="button" className="pw-toggle" onClick={() => setShowPw((v) => !v)} aria-pressed={showPw}
+              aria-label={showPw ? 'Ocultar contraseña' : 'Mostrar contraseña'}>{showPw ? 'Ocultar' : 'Ver'}</button>
+          </span>
+        </label>
         <button className="btn wide" type="submit" disabled={busy}>{mode === 'login' ? 'Entrar' : 'Crear cuenta'}</button>
       </form>
     </div>

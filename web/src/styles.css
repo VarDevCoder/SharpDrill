@@ -401,6 +401,11 @@ th { background: var(--surface-2); font-weight: 600; }
 .auth-form { padding: 28px; margin: 0; }
 .auth-form .tabs { margin-bottom: 20px; }
 .auth-form input { width: 100%; }
+.pw-field { position: relative; display: block; }
+.pw-field input { padding-right: 76px; }
+.pw-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); padding: 4px 10px; border: 0; border-radius: 6px;
+  background: transparent; color: inherit; opacity: .75; font: inherit; font-size: .85em; cursor: pointer; }
+.pw-toggle:hover, .pw-toggle:focus-visible { opacity: 1; }
 @media (max-width: 760px) { .auth { grid-template-columns: 1fr; gap: 20px; min-height: auto; padding-top: 32px; } .auth-brand h1 { font-size: 1.9rem; } }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
